@@ -1,0 +1,52 @@
+<!-- intermediate.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>   -- 中间状态 --   </title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script>
+        function submitForm() {
+            var form = document.createElement("form");
+            form.method = "POST";
+            form.action = "/run_detect";
+
+            var ruleInput = document.createElement("input");
+            ruleInput.type = "hidden";
+            ruleInput.name = "rule_path";
+            ruleInput.value = "{{ rule_path }}";
+            form.appendChild(ruleInput);
+
+            var pcapInput = document.createElement("input");
+            pcapInput.type = "hidden";
+            pcapInput.name = "pcap_path";
+            pcapInput.value = "{{ pcap_path }}";
+            form.appendChild(pcapInput);
+
+            document.body.appendChild(form);
+            form.submit();
+
+            // 开始检查文件数量
+            setTimeout(checkFiles, 100);  // 提交 0.1 秒后开始检查文件
+        }
+
+        function checkFiles() {
+            fetch('/check_files')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('fileCount').textContent = '文件数量: ' + data.count;
+                })
+                .catch(error => console.error('Fetch error:', error));
+        }
+
+        window.onload = function() {
+            submitForm();  // 页面加载完毕后自动提交表单
+        };
+    </script>
+</head>
+<body>
+    <h1>{{ message }}</h1>
+    <p id="fileCount">文件数量: 正在检查...</p>
+    <button id="retryButton" style="display: none;" onclick="submitForm()">重新执行</button>
+</body>
+</html>

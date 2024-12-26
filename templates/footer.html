@@ -1,0 +1,41 @@
+<!--FILENAME: footer.html -->
+<div style="position: fixed; left: 0; bottom: 0; width: 100%; background-color: #f8f9fa; color: black; text-align: center;">
+    {% if previous_page %}
+        <a href="{{ url_for(previous_page) }}" style="float: left; padding: 10px;">上一页</a>
+    {% endif %}
+    {% if next_page %}
+        <a href="{{ url_for(next_page) }}" style="float: right; padding: 10px;">下一页</a>
+    {% endif %}
+</div>
+{#<link rel="stylesheet" href="{{ url_for('static', filename='css/layui.css') }}">#}
+{#<script src="{{ url_for('static', filename='js/layui.js') }}"></script>#}
+{#<style>#}
+{#    .layui-footer {#}
+{#        position: fixed;#}
+{#        left: 0;#}
+{#        bottom: 0;#}
+{#        width: 100%;#}
+{#        background-color: #f8f9fa;#}
+{#        color: black;#}
+{#        text-align: center;#}
+{#        z-index: 999;#}
+{#    }#}
+{#    .layui-btn-primary {#}
+{#        position: fixed; #}
+{#        bottom: 10px;#}
+{#    }#}
+{#</style>#}
+{#<div class="layui-footer">#}
+{#    <div class="layui-container">#}
+{#        <div class="layui-row">#}
+{#            <!-- 左下角固定按钮 -->#}
+{#            {% if previous_page %}#}
+{#                <a href="{{ url_for(previous_page) }}" class="layui-btn layui-btn-primary" style="left: 10px;">上一页</a>#}
+{#            {% endif %}#}
+{#            <!-- 右下角固定按钮 -->#}
+{#            {% if next_page %}#}
+{#                <a href="{{ url_for(next_page) }}" class="layui-btn layui-btn-primary" style="right: 10px;">下一页</a>#}
+{#            {% endif %}#}
+{#        </div>#}
+{#    </div>#}
+{#</div>#}

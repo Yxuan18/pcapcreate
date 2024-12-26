@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Suricata规则检查结果</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        textarea {
+            width: 600px; /* 设置宽度为100%，占满容器宽度 */
+            height: 350px; /* 初始高度设置为400px */
+            resize: both; /* 允许用户调整文本框的大小 */
+            white-space: pre-wrap; /* 保持空白符的格式且自动换行 */
+            overflow-wrap: break-word; /* 长单词或URL自动换行 */
+        }
+    </style>
+</head>
+<body>
+    <h1>Suricata规则检查结果</h1>
+    <textarea readonly>{{ output }}</textarea> <!-- 只读文本框显示输出 -->
+    <a href="{{ url_for('suricata_check.check') }}">返回</a>
+</body>
+</html>

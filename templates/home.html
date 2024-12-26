@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+{#    <script src="{{ url_for('static', filename='js/wallpaper.js') }}"></script>#}
+{#    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">#}
+    <!-- 引入 Layui 样式 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layui.css') }}" media="all">
+    <!-- 可选：自定义样式 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+<!-- 使用 Layui 容器类，居中内容 -->
+<div class="layui-container" style="margin-top: 50px;">
+    <h1>{{ title }}</h1>
+{#    <ul>#}
+{#    {% for item, link in items %}#}
+{#        <li><a href="{{ link }}" target="_blank">{{ item }}</a></li>#}
+{#    {% endfor %}#}
+{#    </ul>#}
+
+    <!-- 设计卡片组件来展示链接 -->
+    <div class="layui-row layui-col-space15">
+        {% for item, link in items %}
+        <div class="layui-col-xs6 layui-col-sm4 layui-col-md3">
+            <div class="layui-card">
+                <div class="layui-card-header">
+                    <!-- 将 item 包裹在一个链接标签中，使其可以直接点击跳转 -->
+                    <a href="{{ link }}" target="_blank" class="layui-btn layui-btn-normal layui-btn-block" style="text-align: center;">
+                        {{ item }}
+                    </a>
+                </div>
+                <div class="layui-card-body">
+                    <!-- 去掉查看链接按钮 -->
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<!-- 页脚 -->
+{% include 'footer.html' %}
+<!-- 引入 Layui 脚本 -->
+<script src="{{ url_for('static', filename='js/layui.js') }}"></script>
+<script>
+    layui.use('element', function() {
+        var element = layui.element;
+        // 你可以在这里添加其他的 Layui 交互功能
+    });
+</script>
+</body>
+</html>

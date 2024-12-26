@@ -1,0 +1,242 @@
+<!-- suricata_check.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Suricata规则检查</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <!-- 引入 layui 的 CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layui.css') }}">
+        <style>
+        #file_content_display {
+            border: 2px dashed #ccc;
+            padding: 10px;
+            width: 400px;
+            height: 200px;
+            overflow-y: auto; /* 如果文件内容过多，启用滚动条 */
+        }
+
+        layui-form-item {
+            margin-bottom: 20px;
+        }
+
+        #file_content_display.dragover {
+            border-color: #333; /* 当文件拖入时，改变边框颜色 */
+        }
+
+        /* 限制 select 下拉框的最大高度，避免显示过多选项 */
+        #file_select, #pcap_select {
+            max-height: 120px;  /* 限制下拉框展开时的最大高度 */
+            overflow-y: auto;   /* 超过最大高度时启用垂直滚动条 */
+            max-width: 200px;    /* 可选：根据需要调整下拉框的宽度 */
+        }
+        /* 设置下拉框中每个选项的高度 */
+        #file_select option, #pcap_select option {
+            height: 20px;  /* 每个选项的高度，根据需要调整 */
+        }
+
+    /* 表单样式 */
+    form {
+        margin: 20px;
+    }
+
+    label {
+        font-weight: bold;
+        margin-right: 10px;
+    }
+
+    textarea {
+        margin-bottom: 10px;
+    }
+    </style>
+</head>
+<body>
+    <h1>Suricata规则检查</h1>
+    <form action="" method="post" enctype="multipart/form-data" class="layui-form">
+    <div class="layui-form-item">
+        <label for="file_select" class="layui-form-label">选择.rules文件:</label>
+        <div class="layui-input-block">
+        <select name="file_select" id="file_select" class="layui-select" lay-filter="file_select">
+            <option value="">请选择一个文件</option>
+            {% for file in rule_files %}
+            <option value="{{ file }}">{{ file }}</option>
+            {% endfor %}
+        </select>
+        </div>
+    </div>
+        <br><br>
+
+        <!-- 显示选择的.rules文件内容 -->
+    <div class="layui-form-item">
+        <label for="file_content_display" class="layui-form-label">.rules文件内容:</label>
+        <div class="layui-input-block">
+        <textarea id="file_content_display" class="layui-textarea" rows="10" cols="50" readonly>{{ file_content }}</textarea>
+        </div>
+    </div>
+
+        <!-- 用于编辑.rules文件的文本区域 -->
+    <div class="layui-form-item">
+        <label for="file_content_edit" class="layui-form-label">编辑.rules文件内容:</label>
+        <div class="layui-input-block">
+            <textarea name="file_content_edit" id="file_content_edit" class="layui-textarea" rows="10" cols="50"></textarea>
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label for="pcap_select" class="layui-form-label">选择.pcap文件:</label>
+        <div class="layui-input-block">
+            <select name="pcap_select" id="pcap_select" class="layui-select">
+            <option value="">请选择一个文件</option>  <!-- 添加这一行 -->
+            {% for pcap_file in pcap_files %}
+            <option value="{{ pcap_file }}">{{ pcap_file }}</option>
+            {% endfor %}
+        </select>
+        </div>
+    </div>
+
+        <div class="layui-form-item">
+            <!-- 提交按钮 -->
+            <button type="submit" id="load_rules_btn" name="load_rules" class="layui-btn layui-btn-normal">加载.rules文件内容</button>
+            <button type="submit" id="execute_btn" name="execute" class="layui-btn layui-btn-danger">执行Suricata检查</button>
+            <button type="submit" name="detect" class="layui-btn layui-btn-warm">运行Detect检查</button>
+        </div>
+    </form>
+    <script src="{{ url_for('static', filename='js/layui.js') }}"></script>
+    <script>
+        layui.use(['form', 'layer', 'element'], function() {
+            var form = layui.form,
+                layer = layui.layer,
+                element = layui.element;
+
+                // 获取 textarea 和按钮元素
+                const fileContentEdit = document.getElementById('file_content_edit');
+                const loadRulesBtn = document.getElementById('load_rules_btn');
+
+                // 初始隐藏加载按钮
+                loadRulesBtn.style.display = 'none';
+
+                // 监听 textarea 输入事件
+                fileContentEdit.addEventListener('input', function () {
+                    const content = fileContentEdit.value.trim();
+                    if (content === '') {
+                        loadRulesBtn.style.display = 'none'; // 如果文本框为空，隐藏按钮
+                    }
+                });
+
+                // 监听 textarea 失去焦点事件
+                fileContentEdit.addEventListener('blur', function () {
+                    checkContentCompliance();
+                });
+                    // 监听 textarea 当鼠标离开范围时
+                fileContentEdit.addEventListener('mouseleave', function () {
+                    checkContentCompliance();
+                });
+                    // 统一检查内容合规性
+                function checkContentCompliance() {
+                    const content = fileContentEdit.value.trim();
+                    if (!content.startsWith('flow:')) {
+                        loadRulesBtn.style.display = 'none'; // 如果内容为空或以"flow"开头，隐藏按钮
+                        layer.msg('请检查规则内容', {
+                            time: 1800, // 提示持续时间，单位毫秒
+                            icon: 0, // 使用 layui 的提示图标，0 表示警告
+                            offset: 'c' // 提示框居中显示
+                        });
+                    } else {
+                        loadRulesBtn.style.display = 'inline-block'; // 否则显示按钮
+                    }
+                }
+
+                // 当鼠标悬停在 "执行Suricata检查" 按钮上时，显示提示信息
+                document.getElementById('execute_btn').addEventListener('mouseover', function() {
+                    layer.tips('会先执行 Suricata，成功后，将自动加载 Detect', '#execute_btn', {
+                        tips: [1, '#74d974'], // 方向 1 表示上方，颜色为橙色
+                        time: 2300 // 提示信息显示 2.3 秒钟
+                    });
+                });
+
+                // 监听文件选择框的变化
+                form.on('select(file_select)', function(data) {
+                    const selectedFile = data.value;
+                    if (selectedFile) {
+                    // 使用 Fetch API 获取文件内容
+                    fetch(`/load_rules_content?file=${selectedFile}`)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! Status: ${response.status}`);
+                            }
+                            return response.text();
+                        })
+                        .then(data => {
+                            // 如果加载成功，则将内容填入 textarea
+                            document.getElementById("file_content_display").value = data;
+                            // 通过 layui.form.render() 重新渲染 textarea，确保内容正确更新
+                            form.render('textarea');  // 使用 layui 渲染 textarea
+
+                            layer.msg('文件加载成功！', {icon: 1, time: 1500}); // 使用 layui layer 提示成功
+                        })
+                        .catch(error => {
+                            // 处理错误
+                            console.error('Error loading the file content:', error);
+                            document.getElementById("file_content_display").value = "加载文件时出错，请稍后再试。";
+                            form.render('textarea');  // 重新渲染 textarea
+
+                            layer.msg('文件加载失败！请稍后再试。', {icon: 2, time: 1500}); // 使用 layui layer 提示错误
+                        });
+                } else {
+                    // 没有选择文件时清空内容
+                    document.getElementById("file_content_display").value = "未选择文件";
+                    form.render('textarea');  // 重新渲染 textarea
+
+                    layer.msg('请先选择一个文件！', {icon: 0, time: 1500});
+                }
+                });
+
+                // 文件拖拽显示区的样式变化
+                const textArea = document.getElementById('file_content_display');
+
+                textArea.addEventListener('dragover', (event) => {
+                    event.preventDefault();
+                    textArea.classList.add('dragover');
+                });
+
+                textArea.addEventListener('dragleave', () => {
+                    textArea.classList.remove('dragover');
+                });
+
+                textArea.addEventListener('drop', (event) => {
+                    event.preventDefault();
+                    textArea.classList.remove('dragover');
+
+                    const files = event.dataTransfer.files;
+                    if (files.length > 0) {
+                        const file = files[0];
+                        if (file.name.endsWith('.pcap') || file.name.endsWith('.pcapng') || file.name.endsWith('.rules')) {
+                            const formData = new FormData();
+                            formData.append('file', file);
+
+                            fetch('/upload_pcap', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => response.text())
+                            .then(data => {
+                                // 使用layui的layer弹窗显示成功消息
+                                layer.msg('文件上传成功', {icon: 1, time: 2000});
+                                location.reload();
+                            })
+                            .catch(error => {
+                                // 使用layui的layer弹窗显示错误消息
+                                layer.msg('文件上传失败', {icon: 5, time: 2000});
+                                console.error('文件上传失败:', error);
+                            });
+                        } else {
+                            // 使用layui的layer弹窗显示错误消息
+                            layer.msg('仅支持 .pcap 和 .pcapng 文件', {icon: 2, time: 2000});
+                        }
+                    }
+                });
+        });
+    </script>
+{% include 'footer.html' %}
+</body>
+</html>

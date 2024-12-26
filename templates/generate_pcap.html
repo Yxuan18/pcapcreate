@@ -1,0 +1,228 @@
+<!-- filename: generate_pcap.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>生成PCAP文件</title>
+        <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/layui.css') }}">
+    <style>
+        .container {
+            text-align: center;
+            margin-top: 50px; /* 调整顶部间距 */
+        }
+        .textareas-container {
+            display: flex;
+            justify-content: space-around; /* 两个文本框之间留有空间 */
+            margin: 0 auto 20px auto; /* 上下居中，底部与文件名输入框的间距为20px */
+            gap: 10px; /* 文本框之间的间距设置为 10px */
+            max-width: 95%; /* 设置最大宽度以适应页面布局 */
+            font-size: 18px; /* 设置字体大小为 18px */
+        }
+        .textarea-container {
+            flex: 1; /* 使两个文本框等宽 */
+            max-width: 600px; /* 设置最大宽度，确保文本框不会过大 */
+        }
+
+        .layui-textarea {
+            width: 100%; /* 文本框宽度填满其父容器 */
+            height: 400px; /* 设置文本框高度为 400px */
+            font-size: inherit; /* 继承父容器的字体大小 */
+            padding: 10px; /* 增加内边距，提升输入体验 */
+            resize: vertical; /* 允许用户仅垂直方向调整文本框大小 */
+            overflow-y: auto; /* 如果内容过多，显示垂直滚动条 */
+    }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* 居中对齐 */
+            margin-top: 20px;
+        }
+
+        .form-group label {
+            margin-bottom: 10px; /* 在标签和输入框之间设置间距 */
+        }
+
+        .form-group input[type="text"] {
+            width: 200px; /* 默认宽度 */
+            max-width: 500px; /* 最大宽度 */
+            transition: width 0.3s ease-in-out; /* 添加宽度变化的过渡效果 */
+            padding: 8px; /* 给输入框增加一些内边距，增强用户体验 */
+            font-size: 16px; /* 增加字体大小 */
+            margin-bottom: 10px; /* 在输入框和按钮之间设置间距 */
+
+            text-align: center; /* 水平居中显示文本 */
+            display: flex; /* 使用 flexbox 布局 */
+            align-items: center; /* 垂直居中对齐文本 */
+            justify-content: center; /* 水平居中对齐文本 */
+            box-sizing: border-box; /* 确保 padding 不会影响元素的整体大小 */
+        }
+        .form-group input[type="text"]:focus {
+            width: 500px; /* 当输入框获得焦点时，逐渐扩大至最大宽度 */
+        }
+        .layui-btn-warm {
+            margin-top: 10px; /* 设置按钮和输入框之间的间距 */
+        }
+        .action-buttons input[type="submit"], .form-group input[type="text"] {
+            margin-right: 20px;
+        }
+
+        .template-btn {
+            margin-top: 20px;
+            margin-right: 10px;
+        }
+        /* 为页面内容添加底部填充，避免被页脚覆盖 */
+        body {
+            padding-bottom: 60px;  /* 确保页面内容不会被固定的页脚覆盖，60px 可以根据页脚的高度进行调整 */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>生成PCAP文件</h1>
+        <form method="post" class="layui-form">
+            <div class="textareas-container">
+                <div class="textarea-container">
+                    <label for="request_body">请求体:</label>
+                    <textarea name="request_body" class="layui-textarea">{{ request_body_content }}</textarea>
+                </div>
+                <div class="textarea-container">
+                    <label for="response_body">响应体:</label>
+                    <textarea name="response_body" class="layui-textarea">{{ template_response }}</textarea>
+                </div>
+            </div>
+            <div class="layui-form-item action-buttons">
+                <button type="button" class="layui-btn layui-btn-normal template-btn" data-template="标准GET" data-type="request">标准GET</button>
+                <button type="button" class="layui-btn layui-btn-normal template-btn" data-template="普通POST" data-type="request">普通POST</button>
+                <button type="button" class="layui-btn layui-btn-normal template-btn" data-template="FORM提交" data-type="request">FORM提交</button>
+            </div>
+            <script src="{{ url_for('static', filename='js/layui.js') }}"></script>
+            <script>
+                layui.use(['form', 'layer'], function () {
+                    var form = layui.form,
+                        layer = layui.layer;
+                    document.querySelectorAll('.template-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            const templateName = this.getAttribute('data-template');
+                            const templateType = this.getAttribute('data-type'); // Determine if it's a request or response template
+                            // 假设后端接受请求并返回纯文本格式的模板内容
+                            fetch(`/generate_pcap/template?name=${templateName}&type=${templateType}`)
+                                .then(response => response.text())  // 假设后端返回的是纯文本格式
+                                .then(text => {
+                                    if (templateType === 'request') {
+                                        // Update the request body textarea with the fetched request template content
+                                        document.querySelector('textarea[name="request_body"]').value = text;
+                                    } else if (templateType === 'response') {
+                                        // Update the response body textarea with the fetched response template content
+                                        document.querySelector('textarea[name="response_body"]').value = text;
+                                    }
+                                })
+                                .catch(error => {
+                                    layer.alert('Error fetching template content: ' + error.message);
+                                });
+                        });
+                    });
+
+                    // 监听双击空白区域，清空所有 textareas 和 input 内容
+                    document.body.addEventListener('dblclick', function(event) {
+                        // 检查用户双击的目标元素是否为需要忽略的元素
+                        if (event.target.classList.contains('layui-textarea') ||
+                            event.target.classList.contains('layui-btn') ||
+                            event.target.classList.contains('layui-input')) {
+                            return; // 如果是这些元素中的一个，则不执行清空操作
+                        }
+
+                        // 清空所有 textarea 和 input 字段的内容
+                        document.querySelectorAll('textarea, input').forEach(inputElement => {
+                            // 排除按钮类型的 input
+                            if (inputElement.type !== 'submit' && inputElement.type !== 'button') {
+                                inputElement.value = '';
+                            }
+                        });
+
+                        // 使用 Layui 显示提示信息
+                        layer.msg('所有字段已被清空', {
+                            time: 1200, // 提示信息显示时间（单位：毫秒）
+                            icon: 1,    // 使用 Layui 成功图标
+                            offset: 't', // 提示框显示在页面顶部
+                        });
+
+                    });
+
+                    // 获取请求体文本区域
+                    const requestBodyTextarea = document.querySelector('textarea[name="request_body"]');
+                    // 监听请求体文本区域的失去焦点事件
+                    requestBodyTextarea.addEventListener('blur', function () {
+                        // 获取请求体内容
+                        let content = requestBodyTextarea.value;
+                        let lines = content.split('\n');
+
+                        // 如果内容不为空，检查第一行
+                        if (lines.length > 0 && lines[0].trim() !== '') {
+                            let firstLine = lines[0];
+                            let modified = false;
+
+                            // 检查是否以三到六个大写字母开头，后面跟着空格和 '/'
+                            const regex = /^([A-Z]{3,6})\s(\/?.*)/;
+                            let match = firstLine.match(regex);
+
+                            if (match) {
+                                let capitalLetters = match[1];
+                                let restOfLine = match[2];
+
+                                // 如果 restOfLine 没有以 '/' 开头，则添加
+                                if (!restOfLine.startsWith('/')) {
+                                    restOfLine = '/' + restOfLine;
+                                    modified = true;
+                                }
+
+                                // 重新构造第一行
+                                firstLine = `${capitalLetters} ${restOfLine}`;
+                            }
+
+                            // 检查第一行是否以 'HTTP/1.1' 结尾
+                            if (!firstLine.endsWith('HTTP/1.1')) {
+                                if (firstLine.endsWith(' ')) {
+                                    firstLine += 'HTTP/1.1';
+                                } else {
+                                    firstLine += ' HTTP/1.1';
+                                }
+                                modified = true;
+                            }
+
+                            // 如果有修改，更新第一行内容
+                            if (modified) {
+                                lines[0] = firstLine;
+                                requestBodyTextarea.value = lines.join('\n');
+
+                                // 使用 Layui 提示用户
+                                layer.msg('请求体内容已自动修正', {
+                                    time: 1500, // 提示信息显示时间（单位：毫秒）
+                                    icon: 1,    // 使用 Layui 成功图标
+                                    offset: 't', // 提示框显示在页面顶部
+                                });
+                            }
+                        }
+                    });
+                });
+
+            </script>
+            <br>
+
+            <div class="action-buttons">
+                <button type="button" class="layui-btn layui-btn-normal template-btn" data-template="模板200" data-type="response">模板200</button>
+                <button type="button" class="layui-btn layui-btn-normal template-btn" data-template="模板302" data-type="response">模板302</button>
+                <button type="button" class="layui-btn layui-btn-normal template-btn" data-template="模板404" data-type="response">模板404</button>
+                <button type="button" class="layui-btn layui-btn-normal template-btn" data-template="模板502" data-type="response">模板502</button>
+            </div>
+            <div class="form-group">
+                <label for="file_name">文件名:</label>
+                <input type="text" name="file_name" class="layui-input">
+{#                <input type="submit" name="generate" value="生成" class="layui-btn layui-btn-warm">#}
+                <button type="submit" name="generate" class="layui-btn layui-btn-warm">生成</button>
+            </div>
+        </form>
+    </div>
+    {% include 'footer.html' %}
+</body>
+</html>
