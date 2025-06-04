@@ -39,7 +39,7 @@
    docker run -d -p 9900:9900 --name pcapcreate_instance pcapcreate
    ```
 
-   这将在后台运行一个名为 `pcapcreate_instance` 的容器，将容器的 9900 端口映射到主机的 5000 端口，您可以通过访问 `http://localhost:9900` 来使用 `pcapcreate` 应用。
+   这将在后台运行一个名为 `pcapcreate_instance` 的容器，将容器的 9900 端口映射到主机的 9900 端口，您可以通过访问 `http://localhost:9900` 来使用 `pcapcreate` 应用。
 
 ### 更新与维护
 
