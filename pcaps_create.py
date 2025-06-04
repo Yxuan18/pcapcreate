@@ -6,6 +6,7 @@ from scapy.all import *
 from scapy.utils import wrpcap
 from scapy.layers.inet import IP, TCP, Ether
 import re
+import random
 
 
 def fix_content_length(request_body: str):
