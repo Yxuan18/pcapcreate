@@ -16,6 +16,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 # 创建 Flask 应用实例
 app = Flask(__name__)
 
+# 注册生成PCAP、suricata校验和Detect校验的蓝图，绑定到根路径下
+app.register_blueprint(generate_pcap_blueprint, url_prefix='/')
+app.register_blueprint(suricata_check_blueprint, url_prefix='/')
+app.register_blueprint(detect_check_blueprint, url_prefix='/')
+
 
 def clear_directories():
     """
@@ -23,9 +28,9 @@ def clear_directories():
 
     :return: None
     """
-    # BASE_DIR = os.getcwd()
+    BASE_DIR = os.getcwd()
     # 设置基础目录路径，可以根据需要进行调整
-    BASE_DIR = '/var/www/web_apps/'
+    # BASE_DIR = '/var/www/web_apps/'
     # 定义需要清理的目录列表
     directories = [os.path.join(BASE_DIR, 'ruless'), os.path.join(BASE_DIR, 'pcapss')]
     for directory in directories:
@@ -67,6 +72,11 @@ def home():
     return render_template('home.html', title=title, items=items, next_page='generate_pcap.generate')
 
 
+@app.route('/health')
+def health():
+    return {'status': 'ok'}, 200
+
+
 if __name__ == '__main__':
     """
     应用程序的入口。
@@ -80,12 +90,6 @@ if __name__ == '__main__':
     # 2024-7-12 考虑，由于每天创建 PCAP 太多，文件只保留 16 小时
     scheduler.add_job(func=clear_directories, trigger="interval", hours=16)
     scheduler.start()
-
-    # 注册生成PCAP、suricata校验和Detect校验的蓝图，绑定到根路径下
-    app.register_blueprint(generate_pcap_blueprint, url_prefix='/')
-    app.register_blueprint(suricata_check_blueprint, url_prefix='/')
-    app.register_blueprint(detect_check_blueprint, url_prefix='/')
-    # app.run(debug=True, port=9900, host='0.0.0.0')
 
     # 启动 Flask 应用，启用调试模式，监听指定端口和IP地址
     try:

@@ -5,15 +5,49 @@
 
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory
 import os
+import re
 import time
+import base64
+import binascii
 from pcaps_create import creat_http_pcap, fix_content_length, fix_response_content_length  # 确保此路径正确
 from http_requests import standard_get, ordinary_post, form_submission
 from http_responses import http_response_200, http_response_302, http_response_404, http_response_502
-import surui_de
 
 # 创建一个Blueprint对象，用于注册与PCAP生成相关的路由
 generate_pcap = Blueprint('generate_pcap', __name__, template_folder='./')
 
+
+def parse_templates(content):
+    """
+    解析多种模板格式，支持hex、base64等
+    """
+    match = re.search(r'\x7b\x7b(\w+)\x28(.*?)\x29\x7d\x7d', content)
+    if not match:
+        return content
+    func_name = match.group(1)
+    value = match.group(2)
+    alls_ = match.group(0)
+
+    try:
+        if func_name == 'hex':
+            # 处理十六进制
+            hex_code = binascii.unhexlify(value).decode('latin-1')
+            contents = content.replace(alls_, hex_code)
+            return contents
+        elif func_name == 'base64':
+            # 处理base64
+            base64_code = base64.b64decode(value).decode('latin-1')
+            contents = content.replace(alls_, base64_code)
+            return contents
+        elif func_name == 'file':
+            # 处理十六进制
+            with open(value, 'rb') as f:
+                file_code  = f.read().decode('latin-1')
+            contents = content.replace(alls_, file_code)
+            return contents
+    except Exception as e:
+        print(f"解析错误: {e}")
+        return match.group(0)
 
 @generate_pcap.route('/generate_pcap', methods=['GET', 'POST'])
 def generate():
@@ -41,8 +75,12 @@ def generate():
                 file_name = time.strftime('%H-%M', time.localtime(time.time()))
 
             # 调整Content-Length并生成PCAP文件
-            fixs = fix_content_length(request_body=request_body)
-            response_body = fix_response_content_length(response_body)
+            request_body_rep = parse_templates(content=request_body)
+            fixs = fix_content_length(request_body=request_body_rep)
+
+            response_body_rep = parse_templates(content=response_body)
+            response_body = fix_response_content_length(response_body_rep)
+
             file_path = creat_http_pcap(request_str=fixs, response_str=response_body, pcapname=file_name)
             # 提取文件名，假设file_path是完整的文件路径,并重定向到下载路由
             filename = os.path.basename(file_path)
@@ -97,6 +135,7 @@ def download_file(filename):
     :return: 响应对象，下载指定的PCAP文件。
     """
     # 假设所有生成的 .pcap 文件都保存在 'generated_pcaps' 目录中
-    directory = surui_de.webs_path.get('pcap')
+    # directory = surui_de.webs_path.get('pcap')
+    directory = os.path.join(os.getcwd(), "pcapss")
 
     return send_from_directory(directory, filename, as_attachment=True)

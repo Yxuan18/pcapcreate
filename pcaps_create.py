@@ -2,9 +2,17 @@
 # Name: pcaps_create.py
 # Where:
 
+
+import os
+import math
+import random
+from dataclasses import dataclass, field
+from typing import List, Optional
 from scapy.all import *
 from scapy.utils import wrpcap
 from scapy.layers.inet import IP, TCP, Ether
+import os
+import random
 import re
 
 
@@ -150,5 +158,206 @@ def creat_http_pcap(request_str: str, response_str: str, pcapname=''):
     wrpcap(file_paths, http_traffic)
     return file_paths
 
+
+@dataclass
+class PcapNetworkConfig:
+    """网络参数配置，集中管理、一处修改。"""
+    src_mac: str = "c0:25:a5:80:a4:79"
+    dst_mac: str = "c0:26:a5:80:a4:79"
+    src_ip: str = "192.168.0.1"
+    dst_ip: str = "192.168.0.2"
+    src_port: int = 0          # 0 表示随机
+    dst_port: int = 8000
+    mss: int = 1460            # 最大分段大小（以太网典型值）
+    output_dir: str = ""       # 为空时取脚本同级 pcapss/
+
+
+    def __post_init__(self):
+        if self.src_port == 0:
+            self.src_port = random.randint(20000, 50000)
+        if not self.output_dir:
+            self.output_dir = os.path.join(os.path.dirname(__file__), "pcapss")
+
+
+
+
+
+
+
+def creat_http_pcap_new(request_str: str,response_str: str,pcapname: str,config: Optional[PcapNetworkConfig] = None,) -> str:
+    """
+    创建一个【协议完整、设备友好】的 HTTP PCAP 文件。
+
+
+    **关键特性**：
+      - TCP 三次握手 + 四次挥手，状态机完整
+      - 超长 payload 自动按 MSS 分段，兼容硬件设备
+      - seq / ack 全程用变量维护，严格正确
+
+
+    :param request_str:  HTTP 请求原始文本
+    :param response_str: HTTP 响应原始文本
+    :param pcapname:     输出文件名（不含扩展名）
+    :param config:       网络配置，为 None 时使用默认值
+    :return:             生成的 pcap 文件绝对路径
+    """
+
+
+    # ── 0. 参数校验 ──
+    if not request_str or not response_str:
+        raise ValueError("request_str 和 response_str 均不能为空")
+    if not pcapname or not pcapname.strip():
+        raise ValueError("pcapname 不能为空")
+
+
+    cfg = config or PcapNetworkConfig()
+
+
+    # ── 1. 准备以太网 / IP 模板 ──
+    ether_c2s = Ether(src=cfg.src_mac, dst=cfg.dst_mac)
+    ether_s2c = Ether(src=cfg.dst_mac, dst=cfg.src_mac)
+    ip_c2s = IP(src=cfg.src_ip, dst=cfg.dst_ip)
+    ip_s2c = IP(src=cfg.dst_ip, dst=cfg.src_ip)
+
+
+    # ── 2. 初始化序列号 ──
+    seq_c: int = random.randint(1000, 50000)   # 客户端 ISN
+    seq_s: int = random.randint(1000, 50000)   # 服务端 ISN
+
+
+    packets: List[Packet] = []
+
+
+    # ────────────────────────────────
+    #  辅助：构造单个 TCP 包
+    # ────────────────────────────────
+    def _tcp_pkt(ether, ip, sport, dport, flags, seq, ack, payload: bytes = b"") -> Packet:
+        pkt = ether / ip / TCP(sport=sport, dport=dport,flags=flags, seq=seq, ack=ack,)
+        if payload:
+            pkt = pkt / Raw(load=payload)
+        return pkt
+
+
+    # ────────────────────────────────
+    #  辅助：将 payload 按 MSS 分段发送
+    #  返回发送方新的 seq
+    # ────────────────────────────────
+    def _send_segments(ether, ip, sport, dport,ether_r, ip_r,sender_seq: int,receiver_seq: int,payload: bytes,) -> tuple:
+        """
+        将 payload 切片后逐段发送，并为每段生成对端 ACK。
+        :return: (更新后的 sender_seq, receiver_seq)
+        """
+        mss = cfg.mss
+        total = len(payload)
+        seg_count = math.ceil(total / mss) if total > 0 else 1
+
+
+        for i in range(seg_count):
+            chunk = payload[i * mss : (i + 1) * mss]
+            is_last = (i == seg_count - 1)
+
+
+            # PSH+ACK 仅在最后一个分段上设置 PSH
+            flags = "PA" if is_last else "A"
+
+
+            seg = _tcp_pkt(
+                ether, ip, sport, dport,
+                flags=flags,
+                seq=sender_seq,
+                ack=receiver_seq,
+                payload=chunk,
+            )
+            packets.append(seg)
+            sender_seq += len(chunk)
+
+
+            # 对端回 ACK（每段都回，保持状态机简洁）
+            ack_pkt = _tcp_pkt(
+                ether_r, ip_r, dport, sport,
+                flags="A",
+                seq=receiver_seq,
+                ack=sender_seq,
+            )
+            packets.append(ack_pkt)
+
+
+        return sender_seq, receiver_seq
+
+
+    # ── 3. TCP 三次握手 ──
+    packets.append(_tcp_pkt(
+        ether_c2s, ip_c2s, cfg.src_port, cfg.dst_port,
+        flags="S", seq=seq_c, ack=0,
+    ))
+    seq_c += 1  # SYN 消耗 1 个序列号
+
+
+    packets.append(_tcp_pkt(
+        ether_s2c, ip_s2c, cfg.dst_port, cfg.src_port,
+        flags="SA", seq=seq_s, ack=seq_c,
+    ))
+    seq_s += 1  # SYN-ACK 消耗 1 个序列号
+
+
+    packets.append(_tcp_pkt(
+        ether_c2s, ip_c2s, cfg.src_port, cfg.dst_port,
+        flags="A", seq=seq_c, ack=seq_s,
+    ))
+
+
+    # ── 4. HTTP 请求（客户端 → 服务端） ──
+    request_bytes = request_str.encode("utf-8")
+    seq_c, seq_s = _send_segments(
+        ether_c2s, ip_c2s, cfg.src_port, cfg.dst_port,
+        ether_s2c, ip_s2c,
+        sender_seq=seq_c,
+        receiver_seq=seq_s,
+        payload=request_bytes,
+    )
+
+
+    # ── 5. HTTP 响应（服务端 → 客户端） ──
+    response_bytes = response_str.encode("utf-8")
+    seq_s, seq_c = _send_segments(
+        ether_s2c, ip_s2c, cfg.dst_port, cfg.src_port,
+        ether_c2s, ip_c2s,
+        sender_seq=seq_s,
+        receiver_seq=seq_c,
+        payload=response_bytes,
+    )
+
+
+    # ── 6. TCP 四次挥手 ──
+    # 客户端 FIN
+    packets.append(_tcp_pkt(
+        ether_c2s, ip_c2s, cfg.src_port, cfg.dst_port,
+        flags="FA", seq=seq_c, ack=seq_s,
+    ))
+    seq_c += 1  # FIN 消耗 1 个序列号
+
+
+    # 服务端 FIN+ACK（合并）
+    packets.append(_tcp_pkt(
+        ether_s2c, ip_s2c, cfg.dst_port, cfg.src_port,
+        flags="FA", seq=seq_s, ack=seq_c,
+    ))
+    seq_s += 1
+
+
+    # 客户端 LAST-ACK
+    packets.append(_tcp_pkt(
+        ether_c2s, ip_c2s, cfg.src_port, cfg.dst_port,
+        flags="A", seq=seq_c, ack=seq_s,
+    ))
+
+
+    # ── 7. 写文件 ──
+    os.makedirs(cfg.output_dir, exist_ok=True)
+    filepath = os.path.join(cfg.output_dir, f"{pcapname}.pcap")
+    wrpcap(filepath, packets)
+
+
+    return filepath
 
 

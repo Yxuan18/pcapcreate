@@ -1,0 +1,17 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: rgba(255, 255, 255, 0.8); /* 全局背景透明度80% */
+    background-blend-mode: multiply; /* 确保透明度效果生效 */
+}
+
+input, button, textarea {
+    background-color: rgba(255, 255, 255, 0.6); /* 输入框和按钮透明度40% */
+    padding: 10px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+    z-index: 1; /* 确保元素显示在背景前 */
+}

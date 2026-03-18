@@ -1,0 +1,81 @@
+<!-- detect_check_result.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Detect 规则检查结果</title>
+    <style>
+        #content {
+            display: none;  /* 初始设置为不显示 */
+            width: 600px;   /* 宽度设为600px，或其他具体值 */
+            min-height: auto; /* 最小高度设为300px，可根据需要调整 */
+            border: 1px solid #ccc; /* 可选，增加边框以便在调整时可视化 */
+            word-wrap: break-word; /* 确保文本自动换行 */
+            padding: 10px; /* 添加内边距 */
+            font-family: 'Arial', '微软雅黑', sans-serif; /* 使用Arial和微软雅黑字体，提高中英文显示的兼容性 */
+            line-height: 1.5; /* 行高设置为1.5倍 */
+            letter-spacing: 0.5px; /* 字符间距稍微增加 */
+            font-size: 16px; /* 字体大小为16px */
+            background-color: #fff; /* 背景色设置为白色，增加文字的可读性 */
+        }
+        textarea {
+            width: 600px; /* 设置宽度为100%，占满容器宽度 */
+            height: auto; /* 初始高度设置为400px */
+            resize: both; /* 允许用户调整文本框的大小 */
+            white-space: pre-wrap; /* 保持空白符的格式且自动换行 */
+            overflow-wrap: break-word; /* 长单词或URL自动换行 */
+        }
+    </style>
+    <script src="{{ url_for('static', filename='js/html2canvas.min.js') }}"></script>
+</head>
+<body>
+    <h1>Detect 规则检查结果</h1>
+    <textarea readonly>{{ output }}</textarea><br />
+    <button onclick="captureAndDownload('{{ pcap_name }}')">下载截图</button><br />
+    <div id="content" style="display:none;"></div><br />
+    <a href="{{ url_for('suricata_check.check') }}">返回</a><br />
+    <script>
+    function captureAndDownload(pcapName) {
+        const textArea = document.querySelector('textarea');
+        const contentDiv = document.getElementById('content');
+
+        contentDiv.textContent = textArea.value;  // Copy textArea content to div
+        contentDiv.style.display = 'block';  // Make div visible for capturing
+
+        // 动态调整高度以确保整个内容可见
+        textArea.style.height = 'auto';
+        textArea.style.height = textArea.scrollHeight + 'px';
+
+        // 插入一次判断，避免出现 火焰 检测失败也截图的操作
+        if (!textArea.value.startsWith('{"timestamp')) {
+                console.error('Error: textarea 内容不符合预期格式');
+                return;
+            }
+
+        html2canvas(contentDiv, {scrollY: -window.scrollY}).then(canvas => {
+            contentDiv.style.display = 'none';  // Hide div after capturing
+            const image = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            // 使用PCAP文件名作为图片文件名
+            link.download = pcapName + '.png';
+            link.href = image;
+            link.click();
+
+            // 延迟1秒后跳转到 /suricata_check
+            // 2024年7月12日 的想法，能节约下一次检测时面临的需要点击 `返回` 的操作时间
+            // 同时，还更改了 生成 PCAP 包页面的功能，文件名为空时，服务端生成文件名为当前时间
+            setTimeout(function() {
+                window.location.href = "{{ url_for('suricata_check.check') }}";
+            }, 600);
+
+        }).catch(err => {
+            console.error('Error capturing the content:', err);
+        });
+    }
+    // 页面加载完成后自动调用 captureAndDownload 函数
+    window.onload = function() {
+        captureAndDownload('{{ pcap_name }}');
+    };
+    </script>
+</body>
+</html>

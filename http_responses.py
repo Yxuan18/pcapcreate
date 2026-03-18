@@ -9,7 +9,10 @@ def http_response_200():
     body = ("root@localhost c4ca4238a0b923820dcc509a6f75849b\x0d\x0a"
             "<img src=1 onerror=alert(1)> <img src=1 onerror=prompt(1)> <script>alert(1)</script>\x0d\x0a"
             "DB_NAME DB_PASSWD\x0d\x0a"
-            "<title>phpinfo()</title> PHP Version")
+            "<title>phpinfo()</title> PHP Version\x0d\x0a"
+            "{{file(/etc/passwd)}}\x0d\x0a"
+            "{{hex(6e69206b616e20776f2068616f206b616e206d613f)}}\x0d\x0a"
+            "{{base64(bmkga2FuIHdvIGhhbyBrYW4gbWE=)}}\x0d\x0a")
     headers = [
         "HTTP/1.1 200 OK",
         "Content-Type: text/html; charset=UTF-8",

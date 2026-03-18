@@ -181,7 +181,14 @@
                             }
 
                             // 检查第一行是否以 'HTTP/1.1' 结尾
-                            if (!firstLine.endsWith('HTTP/1.1')) {
+                            const httpSuffixRegex = /HTTP\/1\.1\s*$/;
+                            if (httpSuffixRegex.test(firstLine)) {
+                                const trimmed = firstLine.replace(/\s+$/, '');
+                                if (trimmed !== firstLine) {
+                                    firstLine = trimmed;
+                                    modified = true;
+                                }
+                            } else {
                                 if (firstLine.endsWith(' ')) {
                                     firstLine += 'HTTP/1.1';
                                 } else {
@@ -204,6 +211,15 @@
                             }
                         }
                     });
+
+                    // 提交前去掉文件名两端空格（点击按钮或回车提交都适用）
+                    const fileNameInput = document.querySelector('input[name="file_name"]');
+                    const formEl = document.querySelector('form.layui-form');
+                    if (formEl && fileNameInput) {
+                        formEl.addEventListener('submit', function () {
+                            fileNameInput.value = fileNameInput.value.trim();
+                        });
+                    }
                 });
 
             </script>
