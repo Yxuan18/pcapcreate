@@ -1,61 +1,58 @@
-欢迎来到 `pcapcreate` 的奇妙世界——您生成那些棘手的 PCAP 文件并深入探索网络数据包捕获激动人心领域的首选工具！🎉
+# pcapcreate
 
-## pcapcreate 是什么？
+基于 Flask + Scapy 的 PCAP 流量生成与 Suricata 规则验证工具。在网页上选择模板、填写字段，即可生成自定义 PCAP 文件，并用 Suricata 在线验证检测规则是否命中。
 
-`pcapcreate` 是一个基于 Python 的杰作，它巧妙地将您对网络数据包梦想与现实之间的鸿沟架起了桥梁。是否曾因想要为测试创建自定义的 PCAP 文件而感到困惑，却发现自己被网络协议的复杂性缠绕？别担心！我们的应用程序将这一艰巨任务变得轻而易举，允许您仅需几次点击就可以生成、操作乃至庆祝 PCAP 文件的诞生。🚀
+## 功能
 
-## 功能特点
+### 流量生成
 
-- **自定义 PCAP 生成**：轻松生成 PCAP 文件，使其适应您最狂野的测试场景。
-- **丰富的模板选择**：提供了“标准GET”、“普通POST”和“FORM提交”等多种HTTP请求模板，以满足各种数据捕获需求。
-- **直观的界面**：通过我们精心设计的网页模板，您可以无需深入了解复杂的网络协议即可创建和配置 PCAP 文件。
-- **便捷的文件下载**：生成文件后，直接通过网页下载您的 PCAP 文件，无需复杂的文件传输过程。
+- **HTTP**：内置"标准 GET / 普通 POST / FORM 提交"等请求模板，自定义源 / 目的地址与端口、Host、URI、载荷等字段
+- **TCP**：完整的 TCP 会话流量（三次握手、数据传输、四次挥手）
+- **UDP**：自定义载荷的单向 / 双向 UDP 流量
+- **ICMP**：自定义类型与载荷的 ICMP 报文
+- **SMTP**：完整的 SMTP 会话流量（EHLO / MAIL / RCPT / DATA / QUIT）
 
-## 如何开始
+生成完成后直接通过网页下载 PCAP 文件。
 
-1. **设置环境**：首先，确保您的计算机上安装了Python和所有必要的依赖。`requirements.txt` 文件列出了所有需要的库，使用 `pip install -r requirements.txt` 命令进行安装。
-2. **运行应用**：在项目目录下，运行 `python app.py` 启动 Flask 服务器。接着，打开您的浏览器访问我们的应用。
-3. **享受创造**：选择您需要的 HTTP 请求模板，填写相关信息，点击生成，然后下载您的 PCAP 文件。
+### 检测验证
 
-## 一键部署：Docker 🐳
+- **Suricata 校验**：上传或选择 PCAP 与 `.rules` 规则文件，后台调用 Suricata 执行检测，展示告警结果，用于验证规则能否命中目标流量
+- **Detect 校验**：对已生成的规则和 PCAP 文件执行 Detect 检测流程并查看结果
 
-对于追求极致便捷性的您，`pcapcreate` 同样支持通过 Docker 一键部署！无需担心环境配置的繁琐，让 Docker 为您搞定一切。
+### 其他
 
-### 如何使用 Docker 部署
+- 生成的 PCAP 与规则文件每 16 小时自动清理，避免磁盘堆积
+- 环境变量配置：`FLASK_HOST`（默认 `0.0.0.0`）、`FLASK_PORT`（默认 `9900`）、`FLASK_DEBUG`（默认 `false`）、`WEB_APPS_BASE_DIR`（文件目录，默认当前目录）
+- `/health` 健康检查端点
 
-1. **构建 Docker 镜像**：首先，确保您已经在您的系统上安装了 Docker。然后，在项目根目录（包含 `Dockerfile` 的位置）打开终端或命令行，执行以下命令来构建 Docker 镜像：
+## 快速开始
 
-   ```
-   bashCopy code
-   docker build -t pcapcreate .
-   ```
+```bash
+pip install -r requirements.txt
+python app.py
+```
 
-   这将根据 `Dockerfile` 中的指令创建一个名为 `pcapcreate` 的 Docker 镜像。
+浏览器访问 `http://localhost:9900`。
 
-2. **运行容器**：镜像构建完成后，运行以下命令启动容器：
+依赖：Python 3.x、Flask、Scapy、APScheduler、pytz。Suricata 校验功能需要本机已安装 Suricata。
 
-   ```
-   bashCopy code
-   docker run -d -p 9900:9900 --name pcapcreate_instance pcapcreate
-   ```
+## Docker 部署
 
-   这将在后台运行一个名为 `pcapcreate_instance` 的容器，将容器的 9900 端口映射到主机的 5000 端口，您可以通过访问 `http://localhost:9900` 来使用 `pcapcreate` 应用。
+当前 `Dockerfile` 采用间接打包方式：先基于 `python:3.11` 容器安装 Suricata 并部署代码，`docker commit` 为基础镜像（如 `mypcapcreate:v3`），再以该镜像为 `FROM` 构建。
 
-### 更新与维护
+完整步骤见 `Dockerfile` 内注释。镜像就绪后：
 
-- **更新应用**：当 `pcapcreate` 项目有更新时，您只需重新构建 Docker 镜像并重新启动容器即可快速更新应用至最新版本。
-- **便捷性**：无需手动配置环境或解决依赖问题，Docker 为您提供了一个干净、隔离的环境，使得部署和测试变得前所未有的简单。
+```bash
+docker build -t topsec/pcapcreate:v2.4 .
+docker run -d -p 9900:9900 --name pcapcreate_instance topsec/pcapcreate:v2.4
+```
 
-使用 Docker 部署 `pcapcreate`，享受真正的一键部署体验，无论是在开发环境、测试环境还是生产环境，都能够快速启动并运行您的应用。
+访问 `http://localhost:9900`。
 
 ## 贡献
 
-感兴趣的话，我们非常欢迎您的贡献！不管是功能提议、代码改进还是修复 Bug，只需提交 Pull Request 或 Issue 即可。
+欢迎提交 Issue 和 Pull Request。
 
 ## 许可
 
-本项目采用 Apache2.0 许可证。详情请见 LICENSE 文件。
-
-------
-
-别忘了，无论您遇到什么问题，都请记得，有了 `pcapcreate`，您将成为网络数据包捕获的大师。祝您玩得开心！ 🎈
+本项目采用 Apache 2.0 许可证，详情见 [LICENSE](LICENSE)。
