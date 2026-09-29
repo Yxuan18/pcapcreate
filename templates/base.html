@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "Suricata 流量安全实验室" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layui.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<header class="header">
+    <div class="header-container">
+        <h1>
+            <i class="layui-icon layui-icon-survey" style="font-size: 20px; color: var(--primary); margin-right: 8px;"></i>
+            Suricata 安全实验室
+        </h1>
+        <nav class="header-nav">
+            <a href="{{ url_for('home') }}">首页</a>
+            <a href="{{ url_for('suricata_check.check') }}">规则检查</a>
+            <a href="{{ url_for('detect_check.check') }}">Detect 检测</a>
+            <a href="{{ url_for('generate_pcap.generate') }}">PCAP 生成</a>
+        </nav>
+    </div>
+</header>
+
+<main class="main-content">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+    <div class="layui-container">
+        <p>© 2026 Suricata Lab · 基于赛博禅意架构设计</p>
+    </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/layui.js') }}"></script>
+<script>
+layui.use(['element', 'layer'], function(){
+    var element = layui.element;
+    var layer = layui.layer;
+
+    layer.config({
+        extend: 'myskin/style.css',
+        anim: 5
+    });
+});
+</script>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>

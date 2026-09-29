@@ -1,41 +1,27 @@
 <!--FILENAME: footer.html -->
-<div style="position: fixed; left: 0; bottom: 0; width: 100%; background-color: #f8f9fa; color: black; text-align: center;">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/footer.css') }}">
+
+<div class="site-footer">
     {% if previous_page %}
-        <a href="{{ url_for(previous_page) }}" style="float: left; padding: 10px;">上一页</a>
+        <a href="{{ url_for(previous_page) }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            上一页
+        </a>
+    {% else %}
+        <span></span>
     {% endif %}
+
+    <span class="footer-center">Suricata Lab</span>
+
     {% if next_page %}
-        <a href="{{ url_for(next_page) }}" style="float: right; padding: 10px;">下一页</a>
+        <a href="{{ url_for(next_page) }}">
+            下一页
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+    {% else %}
+        <a href="{{ url_for('home') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            返回首页
+        </a>
     {% endif %}
 </div>
-{#<link rel="stylesheet" href="{{ url_for('static', filename='css/layui.css') }}">#}
-{#<script src="{{ url_for('static', filename='js/layui.js') }}"></script>#}
-{#<style>#}
-{#    .layui-footer {#}
-{#        position: fixed;#}
-{#        left: 0;#}
-{#        bottom: 0;#}
-{#        width: 100%;#}
-{#        background-color: #f8f9fa;#}
-{#        color: black;#}
-{#        text-align: center;#}
-{#        z-index: 999;#}
-{#    }#}
-{#    .layui-btn-primary {#}
-{#        position: fixed; #}
-{#        bottom: 10px;#}
-{#    }#}
-{#</style>#}
-{#<div class="layui-footer">#}
-{#    <div class="layui-container">#}
-{#        <div class="layui-row">#}
-{#            <!-- 左下角固定按钮 -->#}
-{#            {% if previous_page %}#}
-{#                <a href="{{ url_for(previous_page) }}" class="layui-btn layui-btn-primary" style="left: 10px;">上一页</a>#}
-{#            {% endif %}#}
-{#            <!-- 右下角固定按钮 -->#}
-{#            {% if next_page %}#}
-{#                <a href="{{ url_for(next_page) }}" class="layui-btn layui-btn-primary" style="right: 10px;">下一页</a>#}
-{#            {% endif %}#}
-{#        </div>#}
-{#    </div>#}
-{#</div>#}

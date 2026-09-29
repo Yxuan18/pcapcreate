@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/generate_icmp.css') }}">
+{% endblock %}
+
+{% block content %}
+    <fieldset class="layui-elem-field layui-field-title">
+        <legend>ICMP 双向数据包生成</legend>
+    </fieldset>
+
+    <div class="tips-card">
+        <strong>工具说明：</strong><br>
+        1. 系统将自动生成一对交互报文（Request 和 Reply）。<br>
+        2. <b>请求包</b>：基于下方配置生成。<br>
+        3. <b>响应包</b>：自动交换 IP/MAC 地址，并将类型设为 0 (Echo Reply)。
+    </div>
+
+    <form class="layui-form" action="{{ url_for('generate_icmp.generate') }}" method="post">
+        <div class="form-row">
+            <div class="form-group">
+                <label>源 IP 地址</label>
+                <input type="text" name="src_ip" value="192.168.1.1" class="layui-input" style="width: 160px;">
+            </div>
+            <div class="form-group">
+                <label>目的 IP 地址</label>
+                <input type="text" name="dst_ip" value="192.168.1.2" class="layui-input" style="width: 160px;">
+            </div>
+            <div class="form-group">
+                <label>ICMP 类型</label>
+                <select name="icmp_type" class="layui-input" style="width: 200px;">
+                    <option value="8" selected>Echo Request (8)</option>
+                    <option value="13">Timestamp Request (13)</option>
+                    <option value="17">Address Mask Request (17)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>ICMP 代码</label>
+                <input type="number" name="icmp_code" value="0" class="layui-input" style="width: 100px;">
+            </div>
+            <div class="form-group">
+                <label>Identifier (ID)</label>
+                <input type="number" name="icmp_id" value="1" class="layui-input" style="width: 100px;">
+            </div>
+            <div class="form-group">
+                <label>Sequence</label>
+                <input type="number" name="icmp_seq" value="1" class="layui-input" style="width: 100px;">
+            </div>
+        </div>
+
+        <div class="textarea-wrapper">
+            <div class="textarea-container">
+                <label>请求体 (Request Payload):</label>
+                <textarea name="payload" class="layui-textarea">Hello ICMP Request</textarea>
+            </div>
+            <div class="textarea-container">
+                <label>响应体 (Response Payload):</label>
+                <textarea name="res_payload" class="layui-textarea">Hello ICMP Reply</textarea>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button type="submit" class="layui-btn layui-btn-warm layui-btn-lg">生成 ICMP PCAP</button>
+            <button type="reset" class="layui-btn layui-btn-primary layui-btn-lg">清空</button>
+            <a href="{{ url_for('home') }}" class="layui-btn layui-btn-primary layui-btn-lg">返回首页</a>
+        </div>
+    </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.body.addEventListener('dblclick', function(event) {
+    if (['TEXTAREA', 'INPUT', 'BUTTON', 'A'].includes(event.target.tagName)) return;
+    document.querySelectorAll('textarea, input').forEach(el => {
+        if (el.type !== 'submit' && el.type !== 'button') el.value = '';
+    });
+    layui.layer.msg('已重置所有输入', {time: 1000, offset: 't'});
+});
+</script>
+{% include 'footer.html' %}
+{% endblock %}

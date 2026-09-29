@@ -1,0 +1,157 @@
+/* ═══════════════════════════════════════════════════════════════════
+   generate_pcap.css — 生成PCAP文件 · 统一设计系统
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────
+   PCAP 特定布局
+   ───────────────────────────────────────────────────────────────── */
+/* 标题紧凑化，减少头重感 */
+.generate-pcap-title {
+    margin-bottom: 20px;
+    border: none;
+}
+
+.generate-pcap-title legend {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 2px;
+    padding: 0 12px;
+    border: none;
+    margin-bottom: 0;
+}
+
+.generate-pcap-title legend::before,
+.generate-pcap-title legend::after {
+    content: "—";
+    margin: 0 8px;
+    color: var(--primary);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   TEXTAREAS CONTAINER — 文本域容器（左右分布）
+   ───────────────────────────────────────────────────────────────── */
+.textareas-container {
+    display: flex;
+    justify-content: center;
+    margin: 0 auto 32px;
+    gap: 24px;
+    max-width: 95%;
+}
+
+.workspace-card {
+    flex: 1;
+    max-width: 650px;
+    text-align: left;
+    /* 统一卡片内边距，确保 textarea 容器对齐 */
+    padding: 20px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   TEXTAREAS — 文本域样式
+   ───────────────────────────────────────────────────────────────── */
+.textareas-container .layui-textarea {
+    width: 100%;
+    /* 舒适的初始高度 */
+    height: 400px;
+    /* 最大高度限制，超出后滚动 */
+    max-height: 520px;
+    font-family: var(--font-code);
+    font-size: 13px;
+    line-height: 1.75;
+    padding: 14px 16px;
+    resize: vertical;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    box-sizing: border-box;
+}
+
+.textareas-container .layui-textarea:hover {
+    border-color: var(--accent);
+}
+
+.textareas-container .layui-textarea:focus {
+    border-color: var(--primary);
+    background: var(--bg-surface);
+    box-shadow: 0 0 0 3px var(--primary-dim);
+    outline: none;
+}
+
+.textareas-container .layui-textarea::placeholder {
+    color: var(--text-placeholder);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   BOTTOM ACTION — 底部操作区
+   ───────────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────────
+   BOTTOM ACTION — 底部操作区
+   ───────────────────────────────────────────────────────────────── */
+.bottom-action-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+}
+
+.bottom-action-zone label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+}
+
+.action-input-group {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+input[name="file_name"] {
+    width: 280px;
+    height: 42px;
+    padding: 0 15px;
+    font-size: 14px;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    transition: var(--transition-fast);
+    color: var(--text-primary);
+    outline: none;
+}
+
+input[name="file_name"]:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-dim);
+    background: var(--bg-surface);
+}
+
+.generate-btn {
+    height: 42px;
+    line-height: 42px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   RESPONSIVE — 响应式适配
+   ───────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .textareas-container {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .workspace-card {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .textareas-container .layui-textarea {
+        height: 300px;
+        max-height: 400px;
+    }
+}

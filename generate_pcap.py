@@ -1,80 +1,47 @@
-# -- coding: utf-8 -- 
-# Name: generate_pcap.py
-# Where:
-# 作用：提供生成PCAP文件的接口，支持选择HTTP请求和响应模板，并生成可下载的PCAP文件
+# -- coding: utf-8 --
+"""
+PCAP 生成模块
+提供 HTTP 请求/响应模板选择和自定义 PCAP 文件生成功能。
+"""
 
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_from_directory
+import logging
 import os
-import re
 import time
-import base64
-import binascii
-from pcaps_create import creat_http_pcap, fix_content_length, fix_response_content_length  # 确保此路径正确
+
+from flask import Blueprint, render_template, request, redirect, url_for
+from werkzeug.utils import secure_filename
+
 from http_requests import standard_get, ordinary_post, form_submission
 from http_responses import http_response_200, http_response_302, http_response_404, http_response_502
+from pcaps_create import creat_http_pcap, fix_content_length, fix_response_content_length
+from utils import parse_templates, download_file, PCAP_DIR
 
-# 创建一个Blueprint对象，用于注册与PCAP生成相关的路由
+logger = logging.getLogger(__name__)
+
 generate_pcap = Blueprint('generate_pcap', __name__, template_folder='./')
 
-
-def parse_templates(content):
-    """
-    解析多种模板格式，支持hex、base64等
-    """
-    match = re.search(r'\x7b\x7b(\w+)\x28(.*?)\x29\x7d\x7d', content)
-    if not match:
-        return content
-    func_name = match.group(1)
-    value = match.group(2)
-    alls_ = match.group(0)
-
-    try:
-        if func_name == 'hex':
-            # 处理十六进制
-            hex_code = binascii.unhexlify(value).decode('latin-1')
-            contents = content.replace(alls_, hex_code)
-            return contents
-        elif func_name == 'base64':
-            # 处理base64
-            base64_code = base64.b64decode(value).decode('latin-1')
-            contents = content.replace(alls_, base64_code)
-            return contents
-        elif func_name == 'file':
-            # 处理十六进制
-            with open(value, 'rb') as f:
-                file_code  = f.read().decode('latin-1')
-            contents = content.replace(alls_, file_code)
-            return contents
-    except Exception as e:
-        print(f"解析错误: {e}")
-        return match.group(0)
 
 @generate_pcap.route('/generate_pcap', methods=['GET', 'POST'])
 def generate():
     """
-    处理PCAP文件生成的请求，支持选择HTTP请求和响应模板，以及自定义HTTP请求和响应内容。
+    处理 PCAP 文件生成请求。
 
-    :return: 渲染后的HTML页面，或在生成PCAP文件后重定向到下载路由。
+    支持选择 HTTP 请求和响应模板，以及自定义内容。
     """
-    template_response = ""  # 用于存放选择的模板响应内容
-    request_body = ""  # 用于存放请求体的内容
+    template_response = ""
+    request_body = ""
 
     if request.method == 'POST':
-        # 处理生成操作
         if 'generate' in request.form:
             request_body = request.form.get('request_body', '')
             response_body = request.form.get('response_body', '')
-            file_name = request.form.get('file_name', '')
+            file_name = secure_filename(request.form.get('file_name', ''))
 
-            # 确保生成的文件名安全，去除路径字符
-            if '/' in file_name or '../' in file_name:
-                file_name = file_name.replace('/','').replace('..', '')
-
-            # 如果未指定文件名，使用当前时间生成文件名
-            if file_name == '':
+            # 未指定文件名时使用时间戳
+            if not file_name:
                 file_name = time.strftime('%H-%M', time.localtime(time.time()))
 
-            # 调整Content-Length并生成PCAP文件
+            # 解析模板并生成 PCAP
             request_body_rep = parse_templates(content=request_body)
             fixs = fix_content_length(request_body=request_body_rep)
 
@@ -82,14 +49,18 @@ def generate():
             response_body = fix_response_content_length(response_body_rep)
 
             file_path = creat_http_pcap(request_str=fixs, response_str=response_body, pcapname=file_name)
-            # 提取文件名，假设file_path是完整的文件路径,并重定向到下载路由
             filename = os.path.basename(file_path)
-            return redirect(url_for('generate_pcap.download_file', filename=filename))
 
-    # 渲染生成PCAP页面，提供选择模板和生成文件的接口
-    return render_template('generate_pcap.html', template_response=template_response,
-                               request_body_content=request_body, previous_page='home', next_page='suricata_check.check',
-                           )
+            logger.info("生成 PCAP 文件: %s", filename)
+            return redirect(url_for('generate_pcap.download_pcap_file', filename=filename))
+
+    return render_template(
+        'generate_pcap.html',
+        template_response=template_response,
+        request_body_content=request_body,
+        previous_page='detect_check.check',
+        next_page='generate_udp.generate'
+    )
 
 
 @generate_pcap.route('/generate_pcap/template')
@@ -126,16 +97,17 @@ def template():
     # Return error if neither request nor response template type is specified
     return "模板类型无效", 400
 
-@generate_pcap.route('/download/<filename>')
-def download_file(filename):
+@generate_pcap.route('/download/<path:filename>')
+def download_pcap_file(filename):
     """
     提供生成的PCAP文件的下载功能。
 
     :param filename: 要下载的PCAP文件名 (str)
     :return: 响应对象，下载指定的PCAP文件。
     """
-    # 假设所有生成的 .pcap 文件都保存在 'generated_pcaps' 目录中
+    # 防止路径遍历攻击
+    safe_filename = os.path.basename(filename)
+    if not safe_filename or safe_filename != filename:
+        return "非法文件名", 400
     # directory = surui_de.webs_path.get('pcap')
-    directory = os.path.join(os.getcwd(), "pcapss")
-
-    return send_from_directory(directory, filename, as_attachment=True)
+    return download_file(PCAP_DIR, safe_filename)

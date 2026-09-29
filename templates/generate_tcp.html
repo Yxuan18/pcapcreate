@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/generate_tcp.css') }}">
+{% endblock %}
+
+{% block content %}
+    <fieldset class="layui-elem-field layui-field-title">
+        <legend>TCP 流向流量生成</legend>
+    </fieldset>
+
+    <div class="tips-card">
+        <strong>工具说明：</strong><br>
+        1. 自动生成完整的 TCP 会话过程：三次握手 -> 数据交互 -> 四次挥手，确保 Suricata 能正确识别会话状态。<br>
+        2. <b>Request</b> 由源发送至目的，<b>Response</b> 由目的返回至源。<br>
+        3. 支持 <code>{{ '{{hex(4142)}}' }}</code> 等模板。双击页面空白处可重置所有输入。
+    </div>
+
+    <form class="layui-form" action="{{ url_for('generate_tcp.generate') }}" method="post">
+        <div class="form-row">
+            <div class="form-group">
+                <label>源 IP 地址</label>
+                <input type="text" name="src_ip" value="192.168.1.1" class="layui-input" style="width: 160px;">
+            </div>
+            <div class="form-group">
+                <label>目的 IP 地址</label>
+                <input type="text" name="dst_ip" placeholder="例如: 10.0.0.1" class="layui-input" lay-verify="required" style="width: 160px;">
+            </div>
+            <div class="form-group">
+                <label>源端口</label>
+                <input type="number" name="src_port" value="12345" class="layui-input" style="width: 100px;">
+            </div>
+            <div class="form-group">
+                <label>目的端口</label>
+                <input type="number" name="dst_port" value="80" class="layui-input" style="width: 100px;">
+            </div>
+        </div>
+
+        <div class="textarea-wrapper">
+            <div class="textarea-container">
+                <label>请求载荷 (Client -> Server)</label>
+                <textarea name="payload" placeholder="例如: GET / HTTP/1.1\r\nHost: example.com\r\n\r\n" class="layui-textarea">TCP Request Data</textarea>
+            </div>
+            <div class="textarea-container">
+                <label>响应载荷 (Server -> Client)</label>
+                <textarea name="res_payload" placeholder="例如: HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello" class="layui-textarea">TCP Response Data</textarea>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button class="layui-btn layui-btn-warm layui-btn-lg" lay-submit>生成 TCP 会话 PCAP</button>
+            <button type="reset" id="resetBtn" class="layui-btn layui-btn-primary layui-btn-lg">清空</button>
+            <a href="{{ url_for('home') }}" class="layui-btn layui-btn-primary layui-btn-lg">返回首页</a>
+        </div>
+    </form>
+</div>
+
+<script>
+layui.use(['form', 'layer'], function(){
+    var form = layui.form;
+    var layer = layui.layer;
+
+    document.body.addEventListener('dblclick', function(event) {
+        if (['TEXTAREA', 'INPUT', 'BUTTON', 'A'].includes(event.target.tagName)) return;
+        document.querySelectorAll('textarea, input').forEach(el => {
+            if (el.type !== 'submit' && el.type !== 'button') el.value = '';
+        });
+        layer.msg('已重置所有输入', {time: 1000, offset: 't'});
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', function() {
+        layer.msg('表单已重置', {time: 1000, offset: 't'});
+    });
+});
+</script>
+{% include 'footer.html' %}
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/generate_smtp.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <fieldset class="layui-elem-field layui-field-title">
+        <legend>SMTP 流量生成</legend>
+    </fieldset>
+
+    <div class="tips-card">
+        <strong>工具说明：</strong><br>
+        1. 用于生成 SMTP 协议 PCAP，内容包含标准 SMTP 交互，如 <code>EHLO</code>、<code>MAIL FROM</code>、<code>RCPT TO</code>、<code>DATA</code>、<code>QUIT</code>。<br>
+        2. 左侧填写 SMTP 基本参数，正文区域填写邮件内容。<br>
+        3. 支持 <code>{{ '{{hex(4142)}}' }}</code> 等模板。双击页面空白处可重置所有输入。
+    </div>
+
+    <form class="layui-form" action="{{ url_for('generate_smtp.generate_smtp_pcap') }}" method="post">
+        <div class="form-row">
+            <div class="form-group">
+                <label>源 IP 地址</label>
+                <input type="text" name="src_ip" value="192.168.1.100" class="layui-input" style="width: 160px;">
+            </div>
+            <div class="form-group">
+                <label>目的 IP 地址</label>
+                <input type="text" name="dst_ip" placeholder="例如: 10.0.0.25" class="layui-input" lay-verify="required" style="width: 160px;">
+            </div>
+            <div class="form-group">
+                <label>源端口</label>
+                <input type="number" name="src_port" value="12345" class="layui-input" style="width: 100px;">
+            </div>
+            <div class="form-group">
+                <label>目的端口</label>
+                <input type="number" name="dst_port" value="25" class="layui-input" style="width: 100px;">
+            </div>
+            <div class="form-group">
+                <label>EHLO 域名</label>
+                <input type="text" name="helo_domain" value="client.example.com" class="layui-input" style="width: 180px;">
+            </div>
+            <div class="form-group">
+                <label>SMTP 主机名</label>
+                <input type="text" name="mail_hostname" value="mail.example.com" class="layui-input" style="width: 180px;">
+            </div>
+            <div class="form-group">
+                <label>发件人</label>
+                <input type="text" name="sender" value="sender@example.com" class="layui-input" style="width: 220px;">
+            </div>
+            <div class="form-group">
+                <label>收件人</label>
+                <input type="text" name="recipient" value="recipient@example.com" class="layui-input" style="width: 220px;">
+            </div>
+            <div class="form-group">
+                <label>邮件主题</label>
+                <input type="text" name="subject" value="Test Mail" class="layui-input" style="width: 220px;">
+            </div>
+        </div>
+
+        <div class="textarea-wrapper">
+            <div class="textarea-container">
+                <label>邮件正文</label>
+                <textarea name="body" placeholder="例如: This is a test SMTP message." class="layui-textarea">This is a test SMTP message.</textarea>
+            </div>
+        </div>
+
+        <div class="btn-container">
+            <button class="layui-btn layui-btn-warm layui-btn-lg" lay-submit>生成 SMTP PCAP</button>
+            <button type="reset" id="resetBtn" class="layui-btn layui-btn-primary layui-btn-lg">清空</button>
+            <a href="{{ url_for('home') }}" class="layui-btn layui-btn-primary layui-btn-lg">返回首页</a>
+        </div>
+    </form>
+</div>
+
+<script>
+layui.use(['form', 'layer'], function(){
+    var form = layui.form;
+    var layer = layui.layer;
+
+    document.body.addEventListener('dblclick', function(event) {
+        if (['TEXTAREA', 'INPUT', 'BUTTON', 'A'].includes(event.target.tagName)) return;
+        document.querySelectorAll('textarea, input').forEach(el => {
+            if (el.type !== 'submit' && el.type !== 'button') el.value = '';
+        });
+        layer.msg('已重置所有输入', {time: 1000, offset: 't'});
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', function() {
+        layer.msg('表单已重置', {time: 1000, offset: 't'});
+    });
+});
+</script>
+{% include 'footer.html' %}
+{% endblock %}

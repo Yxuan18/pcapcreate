@@ -1,0 +1,661 @@
+/* ═══════════════════════════════════════════════════════════════════
+   BASE.CSS — 统一设计系统 · Suricata 安全实验室
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────
+   DESIGN TOKENS — 设计变量
+   ───────────────────────────────────────────────────────────────── */
+:root {
+    /* 背景色 */
+    --bg-void: #f5f6f8;
+    --bg-surface: #ffffff;
+    --bg-surface-raised: #fafbfc;
+    --bg-input: #f8f9fa;
+
+    /* 主色调 */
+    --primary: #5bb3a6;
+    --primary-hover: #4a9d92;
+    --primary-dim: rgba(91, 179, 166, 0.1);
+    --primary-glow: rgba(91, 179, 166, 0.2);
+
+    /* 强调色 */
+    --accent: #8b9aad;
+    --accent-dim: rgba(139, 154, 173, 0.1);
+
+    /* 暖色（次要操作） */
+    --warm: #c8a96e;
+    --warm-hover: #b89860;
+    --warm-dim: rgba(200, 169, 110, 0.1);
+
+    /* 执行/危险色 */
+    --execute: #d97070;
+    --execute-hover: #c85d5d;
+    --detect: #c99a5b;
+    --detect-hover: #b8883d;
+
+    /* 文字色 */
+    --text-primary: #2d3748;
+    --text-secondary: #5a6270;
+    --text-muted: #9ca3af;
+    --text-placeholder: #c5c9d0;
+
+    /* 边框 */
+    --border: rgba(139, 154, 173, 0.18);
+    --border-light: rgba(139, 154, 173, 0.08);
+
+    /* 阴影 */
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+    --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.06), 0 8px 32px rgba(0, 0, 0, 0.03);
+
+    /* 圆角 */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+
+    /* 动画 */
+    --transition-fast: 0.15s ease;
+    --transition: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* 字体 */
+    --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-code: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   GLOBAL RESET
+   ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-body);
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 背景纹理 */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(135deg, rgba(139, 154, 173, 0.025) 1px, transparent 1px),
+        linear-gradient(225deg, rgba(139, 154, 173, 0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(139, 154, 173, 0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139, 154, 173, 0.5); }
+::selection { background: var(--primary-dim); color: var(--text-primary); }
+
+/* ─────────────────────────────────────────────────────────────────
+   HEADER — 顶部导航
+   ───────────────────────────────────────────────────────────────── */
+.header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    height: 64px;
+    line-height: 64px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.header-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.5px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.header-nav {
+    display: flex;
+    gap: 6px;
+}
+
+.header-nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    border: 1px solid transparent;
+    transition: var(--transition-fast);
+    letter-spacing: 0.3px;
+}
+
+.header-nav a:hover {
+    color: var(--primary);
+    background: var(--primary-dim);
+    border-color: var(--primary-dim);
+}
+
+.header-nav a:active {
+    transform: translateY(1px);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   MAIN CONTENT — 主体内容区
+   ───────────────────────────────────────────────────────────────── */
+.main-content {
+    flex: 1;
+    position: relative;
+    z-index: 1;
+    padding: 48px 0 80px;
+}
+
+.layui-container {
+    position: relative;
+    z-index: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   TYPOGRAPHY — 排版
+   ───────────────────────────────────────────────────────────────── */
+h1 {
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--text-primary);
+    letter-spacing: 6px;
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+h2 {
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--text-primary);
+    letter-spacing: 2px;
+    margin-bottom: 24px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   CARDS — 卡片
+   ───────────────────────────────────────────────────────────────── */
+.card,
+.panel-card,
+.form-card,
+.workspace-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 28px;
+    transition: box-shadow var(--transition), border-color var(--transition);
+}
+
+.card:hover,
+.panel-card:hover,
+.form-card:hover,
+.workspace-card:hover {
+    box-shadow: var(--shadow-hover);
+    border-color: var(--border);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-light);
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.card-header label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   FORM ELEMENTS — 表单元素
+   ───────────────────────────────────────────────────────────────── */
+.layui-form-item {
+    margin-bottom: 20px;
+    clear: both;
+}
+
+.layui-form-label {
+    width: auto;
+    padding: 0 0 8px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: block;
+    float: none;
+    letter-spacing: 0.3px;
+}
+
+.layui-input-block {
+    margin-left: 0;
+}
+
+/* 输入框 */
+.layui-input,
+.layui-textarea,
+input.layui-input,
+textarea.layui-textarea {
+    border-radius: var(--radius-sm) !important;
+    border-color: var(--border) !important;
+    background: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-body) !important;
+    transition: var(--transition-fast);
+}
+
+.layui-input:hover,
+.layui-textarea:hover {
+    border-color: var(--accent) !important;
+}
+
+.layui-input:focus,
+.layui-textarea:focus {
+    border-color: var(--primary) !important;
+    background: var(--bg-surface) !important;
+    box-shadow: 0 0 0 3px var(--primary-dim) !important;
+}
+
+.layui-input::placeholder,
+.layui-textarea::placeholder {
+    color: var(--text-placeholder);
+}
+
+/* 代码输入区 */
+.code-textarea,
+textarea.code-textarea {
+    font-family: var(--font-code) !important;
+    font-size: 13px;
+    line-height: 1.75;
+    background-color: var(--bg-surface-raised) !important;
+    border-color: var(--border) !important;
+    tab-size: 4;
+}
+
+.code-textarea:focus {
+    border-color: var(--primary) !important;
+    background: var(--bg-surface) !important;
+    box-shadow: 0 0 0 3px var(--primary-dim) !important;
+}
+
+/* 下拉框 */
+.layui-form-select dl {
+    max-height: 200px;
+}
+
+.layui-form-select .layui-input,
+.layui-form-select .layui-select-title input {
+    border-radius: var(--radius-sm) !important;
+    border-color: var(--border) !important;
+    background: var(--bg-surface-raised) !important;
+    font-size: 13px;
+    transition: var(--transition);
+}
+
+.layui-form-select .layui-input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px var(--primary-dim) !important;
+}
+
+.layui-form-select .layui-edge {
+    border-top-color: var(--text-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   BUTTONS — 按钮
+   ───────────────────────────────────────────────────────────────── */
+.layui-btn {
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-body) !important;
+    font-weight: 500 !important;
+    transition: var(--transition-fast) !important;
+    letter-spacing: 0.3px;
+}
+
+.layui-btn:hover {
+    transform: translateY(-1px);
+}
+
+.layui-btn:active {
+    transform: translateY(0);
+}
+
+/* 主按钮（绿色） */
+.layui-btn-normal {
+    background-color: var(--primary) !important;
+    border-color: var(--primary) !important;
+    color: #fff !important;
+}
+
+.layui-btn-normal:hover {
+    background-color: var(--primary-hover) !important;
+    border-color: var(--primary-hover) !important;
+    box-shadow: 0 4px 12px rgba(91, 179, 166, 0.25) !important;
+}
+
+/* 次按钮 */
+.layui-btn-primary {
+    background-color: var(--bg-surface-raised) !important;
+    border-color: var(--border) !important;
+    color: var(--text-secondary) !important;
+}
+
+.layui-btn-primary:hover {
+    border-color: var(--primary) !important;
+    color: var(--primary) !important;
+    background-color: var(--primary-dim) !important;
+}
+
+/* 暖色按钮（金色） */
+.layui-btn-warm {
+    background-color: var(--warm) !important;
+    border-color: var(--warm) !important;
+    color: #fff !important;
+}
+
+.layui-btn-warm:hover {
+    background-color: var(--warm-hover) !important;
+    border-color: var(--warm-hover) !important;
+    box-shadow: 0 4px 12px rgba(200, 169, 110, 0.3) !important;
+}
+
+/* 危险按钮 */
+.layui-btn-danger {
+    background-color: var(--execute) !important;
+    border-color: var(--execute) !important;
+    color: #fff !important;
+}
+
+.layui-btn-danger:hover {
+    background-color: var(--execute-hover) !important;
+    border-color: var(--execute-hover) !important;
+}
+
+/* 按钮组 */
+.layui-btn-group .layui-btn {
+    border-radius: var(--radius-sm) !important;
+    font-size: 12px;
+    height: 32px !important;
+    line-height: 32px !important;
+    padding: 0 14px !important;
+}
+
+/* 大按钮 */
+.layui-btn-lg {
+    height: 44px !important;
+    line-height: 44px !important;
+    padding: 0 28px !important;
+    font-size: 14px !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   LAYOUT UTILITIES — 布局工具
+   ───────────────────────────────────────────────────────────────── */
+.container {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+.container-fluid {
+    max-width: 1400px;
+}
+
+/* 表单行 */
+.form-row {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    background: var(--bg-surface);
+    padding: 24px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.form-group label {
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+/* 文本域容器 */
+.textarea-wrapper {
+    display: flex;
+    justify-content: center;
+    margin: 0 auto 32px;
+    gap: 24px;
+    max-width: 95%;
+}
+
+.textarea-container {
+    flex: 1;
+    max-width: 650px;
+    text-align: left;
+}
+
+.textarea-container label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 500;
+    color: var(--primary);
+    font-size: 14px;
+    padding-left: 12px;
+    position: relative;
+}
+
+.textarea-container label::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 14px;
+    background: var(--primary);
+    border-radius: 2px;
+}
+
+.textarea-container textarea {
+    width: 100%;
+    height: 320px;
+    font-family: var(--font-code);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 14px;
+    resize: vertical;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    transition: var(--transition-fast);
+    box-sizing: border-box;
+}
+
+.textarea-container textarea:focus {
+    border-color: var(--primary);
+    background: var(--bg-surface);
+    box-shadow: 0 0 0 3px var(--primary-dim);
+    outline: none;
+}
+
+/* 按钮容器 */
+.btn-container {
+    margin-top: 32px;
+    margin-bottom: 50px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+/* 提示卡片 */
+.tips-card {
+    background-color: #fefef9;
+    color: var(--text-secondary);
+    font-size: 13px;
+    border-left: 3px solid var(--warm);
+    margin: 0 auto 24px;
+    padding: 14px 16px;
+    max-width: 90%;
+    text-align: left;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   FIELD SET — 字段集
+   ───────────────────────────────────────────────────────────────── */
+.layui-elem-field {
+    margin-bottom: 32px;
+    border: none;
+}
+
+.layui-elem-field legend {
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--text-primary);
+    letter-spacing: 4px;
+    padding: 0 16px;
+    border: none;
+    margin-bottom: 24px;
+}
+
+.layui-elem-field legend::before,
+.layui-elem-field legend::after {
+    content: "——";
+    margin: 0 12px;
+    color: var(--primary);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ANIMATIONS — 动画
+   ───────────────────────────────────────────────────────────────── */
+@keyframes zenFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.layui-anim-upbit {
+    animation-name: zenFadeIn;
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.fade-in-down {
+    animation: fadeInDown 0.5s ease-out;
+}
+
+.layui-anim {
+    animation-duration: 0.4s;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   FOOTER — 底部
+   ───────────────────────────────────────────────────────────────── */
+.footer {
+    padding: 30px 0;
+    text-align: center;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    border-top: 1px solid var(--border-light);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   RESPONSIVE — 响应式
+   ───────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .header-nav {
+        display: none;
+    }
+
+    .form-row {
+        padding: 16px;
+        gap: 16px;
+    }
+
+    .textarea-wrapper {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .textarea-container {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .btn-container {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .btn-container .layui-btn {
+        width: 100%;
+        max-width: 300px;
+    }
+}

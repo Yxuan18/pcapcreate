@@ -1,0 +1,120 @@
+/* intermediate.css — 加载页面 · 统一设计系统 */
+
+.intermediate-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+}
+
+.card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 40px 48px;
+    text-align: center;
+    animation: fadeInUp 0.4s ease-out;
+    min-width: 360px;
+}
+
+.pulse-ring {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 24px;
+    border-radius: 50%;
+    background: var(--primary-dim);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pulse-ring::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid var(--primary);
+    opacity: 0;
+    animation: pulse-ring 1.8s ease-out infinite;
+}
+
+.pulse-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+.card h1 {
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--text-primary);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+}
+
+.status {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    font-family: var(--font-code);
+}
+
+.retry-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 18px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    border: 1px solid var(--border);
+    background: var(--bg-surface-raised);
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    display: none;
+}
+
+.retry-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-dim);
+}
+
+.retry-btn.visible {
+    display: inline-flex;
+}
+
+.retry-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+@keyframes pulse-ring {
+    0% {
+        transform: scale(1);
+        opacity: 0;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+@keyframes pulse-dot {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.8);
+    }
+}

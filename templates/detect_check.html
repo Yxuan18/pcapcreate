@@ -1,11 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-</head>
-<body>
-this is a test page
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detect_check.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1>Detect 规则检查</h1>
+        <p>选择规则库与流量样本进行检测</p>
+    </div>
+
+    <div class="form-card">
+        <form action="{{ url_for('detect_check.check') }}" method="post" class="layui-form">
+            <div class="layui-form-item">
+                <label for="rule_select" class="layui-form-label">选择 .rules 文件</label>
+                <div class="layui-input-block">
+                    <select name="file_select" id="rule_select" class="layui-select">
+                        <option value="">请选择一个规则文件</option>
+                        {% for file in rule_files %}
+                        <option value="{{ file }}">{{ file }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="layui-form-item">
+                <label for="pcap_select" class="layui-form-label">选择 PCAP 文件</label>
+                <div class="layui-input-block">
+                    <select name="pcap_select" id="pcap_select" class="layui-select">
+                        <option value="">请选择一个流量文件</option>
+                        {% for file in pcap_files %}
+                        <option value="{{ file }}">{{ file }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="action-row">
+                <button type="submit" name="detect" class="layui-btn layui-btn-normal">执行 Detect 检查</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% include 'footer.html' %}
+{% endblock %}

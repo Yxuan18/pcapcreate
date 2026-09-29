@@ -1,153 +1,193 @@
-# -- coding: utf-8 -- 
-# Name: run2.py
-# Where:
-import sys
+# -- coding: utf-8 --
+"""
+Detect 检测工作流
+执行清理、加密、打包及检测流程。
+"""
+
+import logging
 import os
-import surui_de
 import subprocess
 import shutil
-import logging
+import sys
 from pathlib import Path
+from typing import Optional, Tuple
 
+import surui_de
 
-# 设置日志
+# 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# 魔法字符串常量化
+SDB_CRYPT_BIN = './sdbCrypt'
+TAR_BIN = 'tar'
+TICRYPT_BIN = './tiCrypt'
+DETECT_BIN_NAME = 'Detect'
+OUTPUT_SDB = 'huoyan.sdb'
+OUTPUT_TAR = 'spe-detect.tar.gz'
+OUTPUT_ENCRYPTED = 'spe-detect.ti'
+TAR_CONTENTS = ('classification.sdb', 'reference.sdb')
 
 
-def clear_directory(directory):
+def clear_directory(directory: Path) -> None:
     """
     清空指定目录下的所有文件和子目录，但不删除目录本身。
 
-    :param directory: 需要清空的目录路径 (str or Path)
-    :return: None
+    Args:
+        directory: 目标目录路径
     """
-    for item in Path(directory).iterdir():
+    if not directory.exists():
+        return
+
+    for item in directory.iterdir():
         try:
             if item.is_dir():
-                shutil.rmtree(item)   # 递归删除子目录
+                shutil.rmtree(item)
             else:
-                item.unlink()   # 删除文件
-            logging.info(f"Deleted {item}")
-        except Exception as e:
-            logging.error(f"Failed to delete {item}: {str(e)}")
+                item.unlink()
+            logger.info("已删除: %s", item)
+        except OSError as e:
+            logger.exception("删除 %s 失败", item)
 
 
-def remove_files(directory, pattern='*.rules'):
+def remove_files(directory: Path, pattern: str = '*.rules') -> None:
     """
     删除指定目录下符合匹配模式的文件。
 
-    :param directory: 目标目录 (Path)
-    :param pattern: 文件的匹配模式，默认为 '*.rules' (str)
-    :return: None
+    Args:
+        directory: 目标目录
+        pattern: 文件匹配模式，默认 '*.rules'
     """
     for file in directory.glob(pattern):
         try:
-            file.unlink()   # 删除匹配的文件
-            logging.info(f"Deleted {file}")
-        except Exception as e:
-            logging.error(f"Failed to delete {file}: {str(e)}")
+            file.unlink()
+            logger.info("已删除: %s", file)
+        except OSError as e:
+            logger.exception("删除 %s 失败", file)
 
 
-def encrypt_files(sdb_file_name, rules_file):
+def encrypt_files(sdb_file_name: str, rules_file: str) -> None:
     """
-    对指定的规则文件进行加密。
+    对规则文件进行加密。
 
-    :param sdb_file_name: 输出的加密文件名 (str)
-    :param rules_file: 需要加密的规则文件 (str)
-    :return: None
+    Args:
+        sdb_file_name: 输出的加密文件名
+        rules_file: 需要加密的规则文件
 
-    :raises SystemExit: 如果加密失败，则退出程序。
+    Raises:
+        SystemExit: 加密失败时退出
     """
-    result = subprocess.run(['./sdbCrypt', '-t', '1', '-i', rules_file, '-o', sdb_file_name])
+    result = subprocess.run(
+        [SDB_CRYPT_BIN, '-t', '1', '-i', rules_file, '-o', sdb_file_name],
+        timeout=300
+    )
     if result.returncode != 0:
-        logging.error("Encryption failed!")
+        logger.error("规则文件加密失败")
         sys.exit(1)
 
 
-def main(rules_file, pcaps_file):
+def main(rules_file: str, pcaps_file: str) -> Tuple[bool, str]:
     """
-    主函数，执行清理、加密、打包及检测流程。
+    主流程：清理、加密、打包、执行检测、返回结果。
 
-    :param rules_file: 需要加密的规则文件路径 (str)
-    :param pcaps_file: 待检测的PCAP流量包文件路径 (str)
-    :return: tuple，包含两个元素，第一个是布尔值，表示是否成功，第二个是日志或错误信息。
+    工作目录切换说明：
+    Detect 程序依赖相对路径的配置文件和日志目录，
+    因此需要切换到其所在目录执行。执行完成后不恢复，
+    因为这是批处理脚本，不影响 Web 请求处理。
+
+    Args:
+        rules_file: 规则文件路径
+        pcaps_file: PCAP 文件路径
+
+    Returns:
+        (success: bool, result: str)
+        成功时 result 为 eve.json 内容，失败时为规则文件内容
     """
-    # 定义路径
+    # 切换到 Detect 所在目录（Detect 依赖相对路径的配置文件）
     bin_path = Path(surui_de.detect_path.get('bin_', ''))
-    os.chdir(bin_path)  # 更改当前工作目录到指定的 bin_ 路径
-    log_dir = bin_path / 'log'   # 日志目录
-    pcap_dir = bin_path / 'pcap'   # pcap文件目录
-    sdb_file = bin_path / 'huoyan.sdb'  # 输出的加密文件名
-    sdb_file_name = 'huoyan.sdb'    # SDB文件名
-    tar_file = 'spe-detect.tar.gz'  # 打包的tar文件名
-    tar_input_files = ['classification.sdb', 'reference.sdb']   # 打包文件列表
-    encrypted_tar_file = 'spe-detect.ti'    # 加密的tar文件名
-    detect_bin = bin_path / 'Detect'        # Detect程序的路径
+    os.chdir(bin_path)
 
-    # 开始清理日志和流量包
-    logging.info("Starting cleanup...")
-    clear_directory(log_dir)    # 清空日志目录
-    clear_directory(pcap_dir)   # 清空PCAP目录
-    remove_files(bin_path)      # 删除规则文件
-    logging.info(f"删除 {sdb_file}")
-    if sdb_file.exists():
-        sdb_file.unlink()       # 如果SDB文件存在则删除(删除加密后生成的SDB文件)
+    log_dir = bin_path / 'log'
+    pcap_dir = bin_path / 'pcap'
+    sdb_file = bin_path / SDB_CRYPT_BIN
+    sdb_file_name = SDB_CRYPT_BIN  # 相对路径，加密工具在当前目录
+    detect_bin = bin_path / DETECT_BIN_NAME
 
-    # 加密规则文件
-    logging.info("加密规则文件...")
-    encrypt_files(sdb_file_name, rules_file)
-
-    # 打包为tar.gz
-    # 加密打包文件
-    logging.info("打包文件...")
-    cmd = ['tar', '-cvf', tar_file] + tar_input_files + [sdb_file_name]
-    if subprocess.run(cmd).returncode == 0:
-        logging.info("打包成功。")
-    else:
-        logging.info("打包失败！")
-        sys.exit(1)
-
-    # 加密tar.gz文件
-    logging.info("加密打包文件...")
-    if subprocess.run(['./tiCrypt', '-f', '-t', '1', '-i', tar_file, '-o', encrypted_tar_file]).returncode == 0:
-        logging.info("文件加密成功。")
-    else:
-        logging.info("文件加密失败！")
-        sys.exit(1)
+    # 清理旧文件
+    logger.info("开始清理...")
+    clear_directory(log_dir)
+    clear_directory(pcap_dir)
+    remove_files(bin_path)
 
     if sdb_file.exists():
         sdb_file.unlink()
-    remove_files(bin_path)  # 删除所有 .rules 文件
-    # 执行Detect程序
-    logging.info("执行Detect程序...")
-    subprocess.run([detect_bin, '-r', pcaps_file])
 
-    # 检查日志目录下是否有 eve.json
-    eve_json_name = log_dir / 'eve.json'
-    if (eve_json_name).exists():
-        eve_json_read = read_eve_json(filename=eve_json_name)
-        logging.info(eve_json_read)
-        logging.info("结果已产生。")
-        return True, eve_json_read          # 返回成功标志及日志信息
+    # 加密规则文件
+    logger.info("加密规则文件...")
+    encrypt_files(sdb_file_name, rules_file)
+
+    # 打包
+    logger.info("打包文件...")
+    tar_result = subprocess.run(
+        [TAR_BIN, '-cvf', OUTPUT_TAR] + list(TAR_CONTENTS) + [sdb_file_name],
+        timeout=300
+    )
+    if tar_result.returncode == 0:
+        logger.info("打包成功")
     else:
-        logging.info(f"请检查 PCAP 文件或 {rules_file}。")
-        with open(rules_file, 'r', encoding='utf-8') as ffs:
-            rules_context = str(ffs.read())
-            return False, rules_context     # 返回错误标志及规则文件内容
+        logger.error("打包失败")
+        sys.exit(1)
+
+    # 加密 tar.gz
+    logger.info("加密打包文件...")
+    crypt_result = subprocess.run(
+        [TICRYPT_BIN, '-f', '-t', '1', '-i', OUTPUT_TAR, '-o', OUTPUT_ENCRYPTED],
+        timeout=300
+    )
+    if crypt_result.returncode == 0:
+        logger.info("文件加密成功")
+    else:
+        logger.error("文件加密失败")
+        sys.exit(1)
+
+    # 清理中间文件
+    if sdb_file.exists():
+        sdb_file.unlink()
+    remove_files(bin_path)
+
+    # 执行 Detect
+    logger.info("执行 Detect 程序...")
+    subprocess.run([str(detect_bin), '-r', pcaps_file], timeout=300)
+
+    # 检查结果
+    eve_json_path = log_dir / 'eve.json'
+    if eve_json_path.exists():
+        result = read_eve_json(eve_json_path)
+        logger.info("检测完成，结果已生成")
+        return True, result
+    else:
+        logger.warning("未检测到告警，请检查 PCAP 文件或规则文件")
+        try:
+            with open(rules_file, 'r', encoding='utf-8') as f:
+                rules_context = f.read()
+        except OSError:
+            rules_context = "(无法读取规则文件)"
+        return False, rules_context
 
 
-def read_eve_json(filename):
+def read_eve_json(filename: Path) -> str:
     """
-    读取 eve.json 文件的内容。
+    读取 eve.json 文件内容。
 
-    :param filename: eve.json 文件的路径 (str)
-    :return: 文件内容 (str)
+    Args:
+        filename: eve.json 文件路径
+
+    Returns:
+        文件内容字符串
     """
-    with open(filename, 'r', encoding='utf-8') as ffs:
-        files_context = ffs.read()
-        return files_context
+    with open(filename, 'r', encoding='utf-8') as f:
+        return f.read()
 
 
 if __name__ == '__main__':
-    # 从命令行参数接收规则文件和PCAP文件路径
     main(rules_file=sys.argv[1], pcaps_file=sys.argv[2])

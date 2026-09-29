@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/generate_udp.css') }}">
+{% endblock %}
+
+  {% block content %}
+  <div class="container">
+      <div class="header-section">
+          <h1>UDP 双向流量生成</h1>
+          <div class="tips-card">
+              <i class="layui-icon layui-icon-tips"></i>
+
+  提示：系统将自动根据请求信息生成对应的反向响应包。<b>双击页面空白处可快速重置表单。</b>
+          </div>
+      </div>
+
+      <form class="layui-form" action="{{ url_for('generate_udp.generate') }}" method="post">
+          <div class="form-row">
+              <div class="form-group">
+                  <label>源 IP 地址</label>
+                  <input type="text" name="src_ip" value="192.168.1.1" class="layui-input"
+  style="width: 180px;">
+              </div>
+              <div class="form-group">
+                  <label>目的 IP 地址</label>
+                  <input type="text" name="dst_ip" value="192.168.1.2" class="layui-input"
+  style="width: 180px;" lay-verify="required">
+              </div>
+              <div class="form-group">
+                  <label>源端口</label>
+                  <input type="number" name="src_port" value="12345" class="layui-input"
+  style="width: 100px;">
+              </div>
+              <div class="form-group">
+                  <label>目的端口</label>
+                  <input type="number" name="dst_port" value="80" class="layui-input" style="width:
+   100px;">
+              </div>
+          </div>
+
+          <div class="textarea-wrapper">
+              <div class="textarea-container">
+                  <label>请求内容 (Request Payload)</label>
+                  <textarea name="payload" placeholder="输入请求包载荷 (Hex 或纯文本)..."
+  class="layui-textarea">UDP Request</textarea>
+              </div>
+              <div class="textarea-container">
+                  <label>响应内容 (Reply Payload)</label>
+                  <textarea name="res_payload" placeholder="输入响应包载荷 (Hex 或纯文本)..."
+  class="layui-textarea">UDP Response</textarea>
+              </div>
+          </div>
+
+          <div class="btn-container">
+              <button class="layui-btn layui-btn-warm layui-btn-lg" lay-submit>
+                  <i class="layui-icon layui-icon-release"></i> 生成双向 PCAP
+              </button>
+              <a href="{{ url_for('home') }}" class="layui-btn layui-btn-primary layui-btn-lg">
+                  <i class="layui-icon layui-icon-home"></i> 返回首页
+              </a>
+          </div>
+      </form>
+  </div>
+
+  <script>
+  layui.use(['form', 'layer'], function(){
+      var form = layui.form;
+      var layer = layui.layer;
+
+      // 统一样式：双击非交互区域清空功能
+      document.body.addEventListener('dblclick', function(event) {
+          if (['TEXTAREA', 'INPUT', 'BUTTON', 'A', 'I'].includes(event.target.tagName)) {
+              return;
+          }
+          document.querySelectorAll('textarea, input').forEach(el => {
+              if (el.type !== 'submit' && el.type !== 'button') {
+                  el.value = '';
+              }
+          });
+          layer.msg('表单已重置', {time: 1000, offset: 't'});
+      });
+  });
+  </script>
+  {% include 'footer.html' %}
+  {% endblock %}

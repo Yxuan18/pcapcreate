@@ -1,0 +1,313 @@
+/* suricata_check.css — Suricata 规则检查舱 · 统一设计系统 */
+
+/* ─────────────────────────────────────────────────────────────────
+   WORKSPACE GRID — 工作区网格
+   ───────────────────────────────────────────────────────────────── */
+.workspace-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 28px;
+    align-items: start;
+    animation: fadeInUp 0.5s ease-out 0.1s backwards;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ASSETS PANEL — 左侧资产配置区下拉框美化
+   ───────────────────────────────────────────────────────────────── */
+/* 下拉框容器 */
+.assets-panel .layui-form-select {
+    position: relative;
+    display: block;
+    width: 100%;
+}
+
+/* 下拉框输入框 */
+.assets-panel .layui-form-select .layui-input,
+.assets-panel .layui-select-title input {
+    height: 40px !important;
+    line-height: 40px !important;
+    padding: 0 40px 0 14px !important;
+    font-size: 13px !important;
+    border-radius: var(--radius-sm) !important;
+    border: 1px solid var(--border) !important;
+    background: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast) !important;
+    cursor: pointer;
+}
+
+.assets-panel .layui-form-select .layui-input:focus,
+.assets-panel .layui-select-title input:focus {
+    border-color: var(--primary) !important;
+    background: var(--bg-surface) !important;
+    box-shadow: 0 0 0 3px var(--primary-dim) !important;
+}
+
+/* 下拉框标签 */
+.assets-panel .layui-form-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.3px;
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* 下拉箭头 */
+.assets-panel .layui-edge {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    margin-top: -4px;
+    border-top: 5px solid var(--text-muted);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: none;
+    transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.assets-panel .layui-form-select:hover .layui-edge,
+.assets-panel .layui-form-selected .layui-edge {
+    border-top-color: var(--primary);
+}
+
+/* 选中状态箭头旋转 */
+.assets-panel .layui-form-selected .layui-edge {
+    transform: rotate(180deg);
+    margin-top: -8px;
+}
+
+/* 下拉面板 */
+.assets-panel .layui-form-select dl {
+    position: absolute;
+    top: 44px;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    border-radius: var(--radius-sm) !important;
+    border: 1px solid var(--border) !important;
+    border-top: none !important;
+    box-shadow: var(--shadow-hover) !important;
+    background: var(--bg-surface);
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 6px 0;
+    margin: 0;
+}
+
+.assets-panel .layui-form-select dl dd,
+.assets-panel .layui-form-select dl dt {
+    padding: 0 14px;
+    height: 38px;
+    line-height: 38px;
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.assets-panel .layui-form-select dl dd:hover {
+    background-color: var(--primary-dim) !important;
+}
+
+.assets-panel .layui-form-select dl dd.layui-select-this {
+    background-color: var(--primary-dim) !important;
+    color: var(--primary) !important;
+}
+
+.assets-panel .layui-form-select dl dd.layui-disabled {
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+}
+
+/* 搜索框（如果有） */
+.assets-panel .layui-form-select dl .layui-input {
+    height: 32px !important;
+    line-height: 32px !important;
+    padding: 0 8px !important;
+    margin: 4px 8px;
+    width: calc(100% - 16px);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   PANEL TITLE — 面板标题
+   ───────────────────────────────────────────────────────────────── */
+.panel-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-title .hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   TEXTAREAS — 文本域（规则视界）
+   ───────────────────────────────────────────────────────────────── */
+/* 确保文本域占满容器宽度 */
+.rules-panel .layui-form-item {
+    margin-bottom: 20px;
+}
+
+.rules-panel .layui-form-item:last-child {
+    margin-bottom: 0;
+}
+
+.rules-panel .code-textarea,
+.rules-panel textarea.code-textarea {
+    width: 100%;
+    min-width: 100%;
+    height: 260px;
+    font-family: var(--font-code);
+    font-size: 13px;
+    line-height: 1.75;
+    padding: 14px 16px;
+    resize: vertical;
+    background: var(--bg-surface-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    box-sizing: border-box;
+}
+
+.rules-panel .code-textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-dim);
+    outline: none;
+}
+
+/* 只读区 — 拖拽样式 */
+#file_content_display {
+    height: 260px;
+    border: 1.5px dashed var(--border);
+    background-color: var(--bg-surface-raised);
+    background-image:
+        linear-gradient(45deg, rgba(139,154,173,0.04) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(139,154,173,0.04) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(139,154,173,0.04) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(139,154,173,0.04) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    line-height: 1.75;
+    cursor: default;
+    /* 可拖拽提示 */
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+#file_content_display:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-dim);
+}
+
+#file_content_display.dragover {
+    border-color: var(--primary);
+    background-color: rgba(91, 179, 166, 0.04);
+    box-shadow: inset 0 0 16px var(--primary-dim);
+    border-style: solid;
+}
+
+/* 编辑区 */
+#file_content_edit {
+    height: 280px;
+}
+
+.action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-light);
+}
+
+.action-group .layui-btn {
+    width: 100%;
+    height: 44px;
+    line-height: 44px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    border-radius: var(--radius-sm) !important;
+    border: none;
+    margin-left: 0 !important;
+    transition: transform var(--transition), box-shadow var(--transition), filter var(--transition);
+}
+
+.action-group .layui-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(0.95);
+}
+
+.action-group .layui-btn:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* 执行按钮 — 柔和红 */
+.btn-execute {
+    background-color: var(--execute) !important;
+    color: #fff !important;
+}
+.btn-execute:hover {
+    background-color: var(--execute-hover) !important;
+    box-shadow: 0 4px 12px rgba(217, 112, 112, 0.25) !important;
+}
+
+/* 检测按钮 — 柔和橙 */
+.btn-detect {
+    background-color: var(--detect) !important;
+    color: #fff !important;
+}
+.btn-detect:hover {
+    background-color: var(--detect-hover) !important;
+    box-shadow: 0 4px 12px rgba(201, 153, 91, 0.25) !important;
+}
+
+.rules-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+/* 重载按钮 — 与主按钮风格一致 */
+.rules-toolbar .layui-btn {
+    height: 38px;
+    line-height: 38px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    border-radius: var(--radius-sm) !important;
+    padding: 0 20px;
+    transition: transform var(--transition), box-shadow var(--transition), filter var(--transition) !important;
+}
+
+.rules-toolbar .layui-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(0.95);
+}
+
+.rules-toolbar .layui-btn:active {
+    transform: translateY(0);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────────── */
+@media (max-width: 960px) {
+    .workspace-grid {
+        grid-template-columns: 1fr;
+    }
+}

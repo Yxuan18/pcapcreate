@@ -7,6 +7,7 @@ import os
 import math
 import random
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Optional
 from scapy.all import *
 from scapy.utils import wrpcap
@@ -30,7 +31,8 @@ def fix_content_length(request_body: str):
         # 正则表达式匹配GET后的所有字符直到HTTP/，替换其中的空格为+
         request_body = re.sub(r'GET ([^\r\n]*?) HTTP/', lambda m: 'GET ' + m.group(1).replace(' ', '+') + ' HTTP/', request_body)
 
-    # 尝试分割请求头和请求体
+    # 尝试分割请求头和请求体（支持 \r\n\r\n 或 \n\n 两种格式）
+    # 先尝试 \r\n\r\n，再尝试 \n\n
     header, _, body = request_body.partition('\r\n\r\n')
 
     # 检查是否已存在Content-Length字段
@@ -69,7 +71,7 @@ def fix_response_content_length(response_body: str):
     if not response_body.startswith('HTTP/'):
         raise ValueError("Invalid HTTP response format")
 
-    # 尝试分割响应头和响应体
+    # 尝试分割响应头和响应体（支持 \r\n\r\n 或 \n\n 两种格式）
     header, _, body = response_body.partition('\r\n\r\n')
 
     # 检查是否已存在Content-Length字段
@@ -147,7 +149,7 @@ def creat_http_pcap(request_str: str, response_str: str, pcapname=''):
 
     http_traffic = [syn_packet, syn_ack_packet, ack_packet, http_request_packet, httpack, http_response_packet,
                     fin_packet, ack_packet_close, ack_packet_close2, fin_packet_ack]
-    pcap_files_dir = os.path.join(os.path.dirname(__file__), 'pcapss/')
+    pcap_files_dir = str(Path(__file__).resolve().parent / 'pcapss/')
     file_paths = pcap_files_dir + pcapname + '.pcap'
 
     # 确保保存文件的目录存在
@@ -176,7 +178,7 @@ class PcapNetworkConfig:
         if self.src_port == 0:
             self.src_port = random.randint(20000, 50000)
         if not self.output_dir:
-            self.output_dir = os.path.join(os.path.dirname(__file__), "pcapss")
+            self.output_dir = str(Path(__file__).resolve().parent / "pcapss")
 
 
 
