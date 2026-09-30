@@ -61,11 +61,11 @@ def generate_smtp_pcap():
         # SMTP 协议交互序列（按 RFC 5321）
         smtp_banner = parse_templates(
             f"220 {mail_hostname} ESMTP Service Ready\r\n"
-        ).encode("utf-8", errors="ignore")
+        )
 
         ehlo_cmd = parse_templates(
             f"EHLO {helo_domain}\r\n"
-        ).encode("utf-8", errors="ignore")
+        )
 
         ehlo_resp = parse_templates(
             f"250-{mail_hostname} Hello [{src_ip}]\r\n"
@@ -73,16 +73,16 @@ def generate_smtp_pcap():
             f"250-8BITMIME\r\n"
             f"250-SIZE 10485760\r\n"
             f"250 OK\r\n"
-        ).encode("utf-8", errors="ignore")
+        )
 
         mail_from_cmd = parse_templates(
             f"MAIL FROM:<{sender}>\r\n"
-        ).encode("utf-8", errors="ignore")
+        )
         mail_from_resp = b"250 2.1.0 Ok\r\n"
 
         rcpt_to_cmd = parse_templates(
             f"RCPT TO:<{recipient}>\r\n"
-        ).encode("utf-8", errors="ignore")
+        )
         rcpt_to_resp = b"250 2.1.5 Ok\r\n"
 
         data_cmd = b"DATA\r\n"
@@ -100,7 +100,7 @@ def generate_smtp_pcap():
             f"\r\n"
             f"{body}\r\n"
             f".\r\n"
-        ).encode("utf-8", errors="ignore")
+        )
         message_resp = b"250 2.0.0 Ok: queued as ABC12345\r\n"
 
         quit_cmd = b"QUIT\r\n"

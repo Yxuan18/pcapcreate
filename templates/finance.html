@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or '一轩资产控制台' }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layui.css') }}" media="all">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/finance.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow-tl"></div>
+    <div class="bg-glow-br"></div>
+
+    <div class="app">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-left">
+                <h1>一轩资产控制台</h1>
+                <div class="tagline">实时金融市场数据 · 辅助决策不构成投资建议</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div class="pulse-bar">
+                    <div class="pulse-dot warn" id="pulse-dot"></div>
+                    <div>
+                        <div class="pulse-text" id="pulse-text">正在连接市场...</div>
+                        <div class="pulse-time" id="pulse-time"></div>
+                    </div>
+                </div>
+                <button class="theme-toggle" id="theme-toggle" title="切换主题">
+                    <span class="sun">☀️</span>
+                    <span class="moon">🌙</span>
+                </button>
+                <button class="share-btn" id="share-btn" title="生成分享卡片">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- SUMMARY ROW -->
+        <div class="summary-row">
+            <div class="panel hero-panel">
+                <div class="hero-eyebrow">资产驾驶舱</div>
+                <div class="hero-value" id="hero-status">加载中</div>
+                <div class="hero-meta">
+                    <span class="chip" id="hero-chip">等待数据</span>
+                    <span class="chip" id="hero-cache">缓存: --</span>
+                    <span class="chip" id="hero-elapsed">耗时: --</span>
+                </div>
+            </div>
+            <div class="panel mini-panel">
+                <div class="mini-label">今日最强</div>
+                <div class="mini-value up" id="best-performer">--</div>
+                <div class="mini-sub" id="best-desc">等数据回来</div>
+            </div>
+            <div class="panel mini-panel">
+                <div class="mini-label">今日拖后腿</div>
+                <div class="mini-value down" id="worst-performer">--</div>
+                <div class="mini-sub" id="worst-desc">等数据回来</div>
+            </div>
+        </div>
+
+        <!-- CRYPTO ASSETS -->
+        <div class="grid-row">
+            <div class="panel">
+                <div class="section-title-row">
+                    <span class="section-title">核心加密资产</span>
+                    <span class="section-hint">BTC / BOX</span>
+                </div>
+                <div class="asset-list">
+                    <div class="asset-card" id="btc-card">
+                        <div class="asset-card-header">
+                            <div>
+                                <div class="asset-name">Bitcoin</div>
+                                <div class="asset-code">BTC / USD</div>
+                            </div>
+                            <div class="asset-icon">₿</div>
+                        </div>
+                        <div class="asset-price" id="btc-price">--</div>
+                    </div>
+                    <div class="asset-card" id="box-card">
+                        <div class="asset-card-header">
+                            <div>
+                                <div class="asset-name">BOX ETF</div>
+                                <div class="asset-code">BOX / USD</div>
+                            </div>
+                            <div class="asset-icon">📦</div>
+                        </div>
+                        <div class="asset-price" id="box-price">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="section-title-row">
+                    <span class="section-title">市场洞察</span>
+                    <span class="section-hint">实时分析</span>
+                </div>
+                <div class="insight-list" id="insight-list">
+                    <div class="insight-card">
+                        <div class="insight-icon">⏳</div>
+                        <div>
+                            <div class="insight-title">正在获取数据</div>
+                            <div class="insight-desc">正在拉取 BTC、BOX、港美股和汇率。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FX RATES -->
+        <div class="panel fx-section">
+            <div class="section-title-row">
+                <span class="section-title">汇率雷达</span>
+                <span class="section-hint">影响港美股换算</span>
+            </div>
+            <div class="fx-grid">
+                <div class="fx-card"><div class="fx-label">USD / CNY</div><div class="fx-value" id="fx-usd-cny">--</div></div>
+                <div class="fx-card"><div class="fx-label">USD / HKD</div><div class="fx-value" id="fx-usd-hkd">--</div></div>
+                <div class="fx-card"><div class="fx-label">HKD / CNY</div><div class="fx-value" id="fx-hkd-cny">--</div></div>
+            </div>
+        </div>
+
+        <!-- STOCK TABLE -->
+        <div class="panel stock-section">
+            <div class="section-title-row">
+                <span class="section-title">自选股行情</span>
+                <span class="section-hint" id="priority-hint">美股 / 港股</span>
+            </div>
+            <div class="stock-tabs">
+                <button class="stock-tab active" data-market="all">全部</button>
+                <button class="stock-tab" data-market="hk">港股</button>
+                <button class="stock-tab" data-market="us">美股</button>
+            </div>
+            <div class="stock-table-wrap">
+                <table class="stock-table">
+                    <thead>
+                        <tr>
+                            <th>代码</th>
+                            <th>名称</th>
+                            <th>最新价</th>
+                            <th>涨跌额</th>
+                            <th>涨跌幅</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stocks-tbody">
+                        <tr class="loading-row"><td colspan="5">正在加载自选股数据...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="footer-row">
+                <span class="footer-left">投资有风险，入市需谨慎。辅助决策，不构成买卖指令。</span>
+                <span class="footer-right">V: jianghusanmei · 一轩</span>
+            </div>
+        </div>
+    </div>
+
+<script src="{{ url_for('static', filename='js/layui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/qrcode.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/html2canvas.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/finance-share.js') }}"></script>
+
+    <!-- SHARE MODAL -->
+    <div class="share-modal-overlay" id="share-modal">
+        <div class="share-modal">
+            <div class="share-modal-title">
+                <span>生成分享卡片</span>
+                <button class="share-modal-close" id="share-modal-close">✕</button>
+            </div>
+            <div id="share-form-area">
+                <div class="share-form-row">
+                    <div class="share-form-label">卡片标题</div>
+                    <input class="share-form-input" id="share-title-input" maxlength="40" placeholder="例如：我的资产日报 · 2026.05.25">
+                </div>
+                <div class="share-form-row">
+                    <div class="share-form-label">副标题 / 备注</div>
+                    <input class="share-form-input" id="share-sub-input" maxlength="60" placeholder="选填，例如：一轩资产控制台">
+                </div>
+                <div class="share-form-row">
+                    <div class="share-form-label">二维码内容（URL）</div>
+                    <input class="share-form-input" id="share-url-input" maxlength="256" placeholder="扫码访问的链接，留空使用当前页面">
+                </div>
+                <div class="share-form-row">
+                    <div class="share-form-label">卡片风格</div>
+                    <div class="share-style-row">
+                        <div class="share-style-option active" data-style="dark">
+                            <span class="share-style-emoji">🌙</span>暗色
+                        </div>
+                        <div class="share-style-option" data-style="light">
+                            <span class="share-style-emoji">☀️</span>亮色
+                        </div>
+                        <div class="share-style-option" data-style="purple">
+                            <span class="share-style-emoji">💜</span>紫幻
+                        </div>
+                        <div class="share-style-option" data-style="green">
+                            <span class="share-style-emoji">🌿</span>森绿
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview area -->
+            <div class="share-card-preview" id="share-card-preview">
+                <div class="share-loading" id="share-preview-loading">
+                    <div class="share-loading-spinner"></div>
+                    正在渲染预览…
+                </div>
+                <canvas id="share-preview-canvas" style="display:none"></canvas>
+            </div>
+
+            <div class="share-actions">
+                <button class="share-action-btn secondary" id="share-refresh-btn">🔄 刷新预览</button>
+                <button class="share-action-btn primary" id="share-download-btn">📥 下载 PNG</button>
+            </div>
+        </div>
+    </div>
+<script>
+layui.use(['jquery'], function(){
+    var $ = layui.$;
+    var REFRESH_MS = 30000;
+    var lastPrices = {};
+
+    // ── THEME ───────────────────────────────────────────────────────
+    function getPreferredTheme() {
+        // 优先用 localStorage 保存的主题
+        var saved = localStorage.getItem('finance-theme');
+        if (saved) return saved;
+        // 其次按时间自动：6-18 点为白天
+        var h = new Date().getHours();
+        return (h >= 6 && h < 18) ? 'light' : 'dark';
+    }
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('finance-theme', theme);
+    }
+
+    function toggleTheme() {
+        var current = document.documentElement.getAttribute('data-theme');
+        applyTheme(current === 'light' ? 'dark' : 'light');
+    }
+
+    // 初始化主题
+    applyTheme(getPreferredTheme());
+
+    // 切换按钮
+    $('#theme-toggle').on('click', toggleTheme);
+
+    // ── UTILS ────────────────────────────────────────────────────────
+    function escHtml(v) {
+        return String(v != null ? v : '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function fmtMoney(v, digits, prefix) {
+        if (v == null || Number.isNaN(Number(v))) return '--';
+        var num = Number(v);
+        var formatted = num.toLocaleString('en-US', {
+            minimumFractionDigits: digits || 2,
+            maximumFractionDigits: digits || 2
+        });
+        return (prefix || '$') + formatted;
+    }
+
+    function fmtNumber(v, digits) {
+        if (v == null || Number.isNaN(Number(v))) return '--';
+        return Number(v).toFixed(digits != null ? digits : 4);
+    }
+
+    function fmtTrend(v, isPct) {
+        if (v == null || Number.isNaN(Number(v))) return '<span class="neutral-text">--</span>';
+        var n = Number(v);
+        var sign = n > 0 ? '+' : '';
+        var cls = n > 0 ? 'up-text' : (n < 0 ? 'down-text' : 'neutral-text');
+        var disp = isPct ? (n * 100).toFixed(2) + '%' : n.toFixed(2);
+        return '<span class="' + cls + '">' + sign + disp + '</span>';
+    }
+
+    function flashPrice(el, direction) {
+        el.removeClass('flash-up flash-down');
+        void el[0].offsetWidth; // reflow
+        el.addClass(direction === 'up' ? 'flash-up' : 'flash-down');
+        setTimeout(function() {
+            el.removeClass('flash-up flash-down');
+        }, 600);
+    }
+
+    function setPulse(type, text) {
+        $('#pulse-dot').removeClass('ok warn fail').addClass(type);
+        $('#pulse-text').text(text);
+    }
+
+    // ── STOCK RENDER ────────────────────────────────────────────────
+    function renderStocksTable(stocks, marketFilter) {
+        if (!stocks || !Object.keys(stocks).length) {
+            $('#stocks-tbody').html('<tr class="loading-row"><td colspan="5">暂无股票数据</td></tr>');
+            return;
+        }
+
+        var rows = Object.entries(stocks)
+            .filter(function(item) {
+                if (marketFilter === 'hk') return item[0].endsWith('.HK');
+                if (marketFilter === 'us') return !item[0].endsWith('.HK');
+                return true;
+            })
+            .map(function(item) { return { ticker: item[0], data: item[1] }; });
+
+        if (!rows.length) {
+            $('#stocks-tbody').html('<tr class="loading-row"><td colspan="5">该分类暂无数据</td></tr>');
+            return;
+        }
+
+        var html = rows.map(function(row) {
+            var ticker = row.ticker;
+            var d = row.data;
+            var price = d && d.price;
+            var change = d && d.change;
+            var pct = d && d.pct;
+            var ok = d && d.ok;
+
+            if (!ok || price == null) {
+                return '<tr><td class="ticker-cell">' + escHtml(ticker) + '</td>' +
+                       '<td class="name-cell">' + escHtml(d && d.name || '--') + '</td>' +
+                       '<td colspan="3" class="neutral-text" style="padding:11px 14px">获取失败</td></tr>';
+            }
+
+            var priceClass = change > 0 ? 'price-cell up' : (change < 0 ? 'price-cell down' : 'price-cell neutral');
+            var priceId = 'price-' + ticker.replace('.', '_');
+
+            // Check price change for flash
+            var prev = lastPrices[ticker];
+            var flashDir = null;
+            if (prev != null && prev !== price) {
+                flashDir = price > prev ? 'up' : 'down';
+            }
+            lastPrices[ticker] = price;
+
+            var flashClass = flashDir ? (' flash-' + flashDir) : '';
+
+            return '<tr>' +
+                '<td class="ticker-cell">' + escHtml(ticker) + '</td>' +
+                '<td class="name-cell">' + escHtml(d.name || '--') + '</td>' +
+                '<td class="' + priceClass + flashClass + '" id="' + priceId + '">' + Number(price).toFixed(2) + '</td>' +
+                '<td class="change-cell">' + fmtTrend(change, false) + '</td>' +
+                '<td class="pct-cell">' + fmtTrend(pct, true) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        $('#stocks-tbody').html(html);
+
+        // Apply flash animation
+        Object.keys(lastPrices).forEach(function(ticker) {
+            var priceId = '#price-' + ticker.replace('.', '_');
+            var $el = $(priceId);
+            if ($el.length) {
+                var prev = $el.data('prev');
+                var curr = lastPrices[ticker];
+                if (prev != null && prev !== curr) {
+                    $el.removeClass('flash-up flash-down');
+                    $el[0].offsetWidth;
+                    $el.addClass(curr > prev ? 'flash-up' : 'flash-down');
+                    setTimeout(function() { $el.removeClass('flash-up flash-down'); }, 600);
+                }
+                $el.data('prev', curr);
+            }
+        });
+    }
+
+    function pickPerformers(stocks) {
+        var rows = Object.entries(stocks || {})
+            .map(function(e) { return { ticker: e[0], data: e[1] }; })
+            .filter(function(item) {
+                return item.data && typeof item.data.pct === 'number';
+            });
+
+        if (!rows.length) return { best: null, worst: null };
+        rows.sort(function(a, b) { return b.data.pct - a.data.pct; });
+        return { best: rows[0], worst: rows[rows.length - 1] };
+    }
+
+    function renderInsights(res, best, worst) {
+        var errors = Array.isArray(res.errors) ? res.errors : [];
+        var insights = [];
+
+        if (best) {
+            insights.push({
+                icon: '🔥',
+                title: '今日扛旗：' + escHtml(best.ticker),
+                desc: escHtml(best.data.name || best.ticker) + ' 涨跌幅 ' + fmtTrend(best.data.pct, true)
+            });
+        }
+        if (worst) {
+            insights.push({
+                icon: '🥶',
+                title: '今日拖后腿：' + escHtml(worst.ticker),
+                desc: escHtml(worst.data.name || worst.ticker) + ' 涨跌幅 ' + fmtTrend(worst.data.pct, true)
+            });
+        }
+        if (res.from_cache) {
+            insights.push({ icon: '⚡', title: '使用缓存', desc: '后端缓存保护中，下次请求将更快速。' });
+        }
+        if (errors.length) {
+            insights.push({ icon: '⚠️', title: '数据源异常', desc: escHtml(errors.slice(0, 2).map(function(e){ return e.target + ': ' + e.message; }).join('；')) });
+        }
+        if (!insights.length) {
+            insights.push({ icon: '✅', title: '市场数据正常', desc: '所有数据源返回稳定，继续观察趋势。' });
+        }
+
+        $('#insight-list').html(insights.map(function(item) {
+            return '<div class="insight-card">' +
+                '<div class="insight-icon">' + item.icon + '</div>' +
+                '<div><div class="insight-title">' + item.title + '</div>' +
+                '<div class="insight-desc">' + item.desc + '</div></div></div>';
+        }).join(''));
+    }
+
+    // ── MAIN RENDER ─────────────────────────────────────────────────
+    function renderData(res) {
+        res = res || {};
+
+        // BTC / BOX
+        var btc = res.btc;
+        var box = res.box;
+        $('#btc-price').text(fmtMoney(btc, 2));
+        $('#box-price').text(fmtMoney(box, 4));
+
+        // FX
+        var fx = res.fx || {};
+        $('#fx-usd-cny').text(fmtNumber(fx.USD_CNY && fx.USD_CNY.rate, 4));
+        $('#fx-usd-hkd').text(fmtNumber(fx.USD_HKD && fx.USD_HKD.rate, 4));
+        $('#fx-hkd-cny').text(fmtNumber(fx.HKD_CNY && fx.HKD_CNY.rate, 4));
+
+        // Priority market indicator
+        var priority = res.priority_market || 'hk';
+        var priorityText = priority === 'hk' ? '🌏 港股优先' : '🇺🇸 美股优先';
+        $('#priority-hint').text(priorityText);
+
+        // Stocks — use active tab filter
+        var activeFilter = $('.stock-tab.active').data('market') || 'all';
+        var allStocks = res.stocks && res.stocks.all;
+        renderStocksTable(allStocks, activeFilter);
+
+        // Performers
+        var result = pickPerformers(allStocks);
+        var best = result.best;
+        var worst = result.worst;
+
+        if (best) {
+            var bestPct = (best.data.pct * 100).toFixed(2);
+            $('#best-performer').html(escHtml(best.ticker) + ' <span class="up-text" style="font-size:0.9rem">' + bestPct + '%</span>');
+            $('#best-desc').text((best.data.name || best.ticker) + ' 正在贡献正反馈');
+        }
+        if (worst) {
+            var worstPct = (worst.data.pct * 100).toFixed(2);
+            $('#worst-performer').html(escHtml(worst.ticker) + ' <span class="down-text" style="font-size:0.9rem">' + worstPct + '%</span>');
+            $('#worst-desc').text((worst.data.name || worst.ticker) + ' 当前偏弱');
+        }
+
+        // Insights
+        renderInsights(res, result.best, result.worst);
+
+        // Status bar
+        var errors = Array.isArray(res.errors) ? res.errors : [];
+        var now = new Date();
+        var timeStr = now.toTimeString().split(' ')[0];
+        var elapsed = res.elapsed_ms ? (res.elapsed_ms / 1000).toFixed(1) + 's' : '--';
+
+        $('#pulse-time').text('更新于 ' + timeStr);
+        $('#hero-cache').text(res.from_cache ? '缓存命中' : '实时请求');
+        $('#hero-elapsed').text('耗时 ' + elapsed);
+
+        if (errors.length) {
+            setPulse('warn', '部分数据异常 · ' + timeStr);
+            $('#hero-status').text('部分数据异常').removeClass('up down');
+            $('#hero-chip').removeClass('up down warn').addClass('warn').text('异常 ' + errors.length + ' 项');
+        } else {
+            setPulse('ok', '市场在线 · ' + timeStr);
+            $('#hero-status').text('市场在线').removeClass('up down');
+            $('#hero-chip').removeClass('up down warn').addClass('up').text('全部正常');
+        }
+    }
+
+    // ── UPDATE ─────────────────────────────────────────────────────
+    function updateData() {
+        setPulse('warn', '正在刷新数据...');
+        $('#hero-chip').text('刷新中...');
+
+        $.get('/api/finance/data')
+            .done(function(res) { renderData(res); })
+            .fail(function() {
+                setPulse('fail', '连接失败');
+                $('#hero-status').text('连接失败');
+                $('#hero-chip').removeClass('up down warn').addClass('down').text('连接失败');
+                $('#insight-list').html(
+                    '<div class="insight-card">' +
+                    '<div class="insight-icon">🔴</div>' +
+                    '<div><div class="insight-title">数据获取失败</div>' +
+                    '<div class="insight-desc">请检查 Flask 服务、外部接口、代理或网络状态。</div></div></div>'
+                );
+            });
+    }
+
+    // ── TAB SWITCH ─────────────────────────────────────────────────
+    $('.stock-tab').on('click', function() {
+        $('.stock-tab').removeClass('active');
+        $(this).addClass('active');
+        var market = $(this).data('market') || 'all';
+
+        // Re-render with filter using current data
+        $.get('/api/finance/data', function(res) {
+            var allStocks = res && res.stocks && res.stocks.all;
+            renderStocksTable(allStocks, market);
+        });
+    });
+
+    updateData();
+    setInterval(updateData, REFRESH_MS);
+
+    // Share card logic — expose $ globally for finance-share.js module-level functions
+    window.$ = $;
+    initShareCard($);
+});
+</script>
+</body>
+</html>

@@ -12,6 +12,11 @@
     </div>
 
     <div class="form-card">
+        {% if error %}
+        <div class="missing-banner">
+            {{ error }}
+        </div>
+        {% endif %}
         <form action="{{ url_for('detect_check.check') }}" method="post" class="layui-form">
             <div class="layui-form-item">
                 <label for="rule_select" class="layui-form-label">选择 .rules 文件</label>
@@ -38,7 +43,11 @@
             </div>
 
             <div class="action-row">
+                {% if detect_status.available %}
                 <button type="submit" name="detect" class="layui-btn layui-btn-normal">执行 Detect 检查</button>
+                {% else %}
+                <span class="detect-missing-hint">本机未配置 Detect，检测入口已隐藏</span>
+                {% endif %}
             </div>
         </form>
     </div>

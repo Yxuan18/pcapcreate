@@ -8,6 +8,28 @@
 <div class="container">
     <h1>Suricata 规则检查舱</h1>
 
+    <div class="suricata-status">
+        {% if suricata_status.available %}
+        <span class="status-badge status-ok">已安装</span>
+        <span class="status-detail" title="{{ suricata_status.bin }}">{{ suricata_status.version or suricata_status.bin }}</span>
+        {% else %}
+        <span class="status-badge status-missing">未安装</span>
+        <span class="status-detail">本地 Suricata 不可用{% if suricata_status.bin %}（{{ suricata_status.bin }}）{% endif %}</span>
+        {% endif %}
+    </div>
+
+    {% if not suricata_status.available %}
+    <div class="missing-banner">
+        未检测到本地 Suricata —— "执行 Suricata 检查"暂不可用，请先安装 Suricata 后刷新本页。
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="missing-banner">
+        {{ error }}
+    </div>
+    {% endif %}
+
     <form class="layui-form" action="" method="post">
     <div class="workspace-grid">
         <div class="panel-card assets-panel">
@@ -38,8 +60,14 @@
             </div>
 
             <div class="action-group">
-                <button type="submit" id="execute_btn" name="execute" class="layui-btn btn-execute">执行 Suricata 检查</button>
+                <span class="execute-btn-wrap">
+                    <button type="submit" id="execute_btn" name="execute"
+                            class="layui-btn btn-execute{% if not suricata_status.available %} layui-btn-disabled{% endif %}"
+                            {% if not suricata_status.available %}disabled title="先安装 Suricata 后再执行检查"{% endif %}>执行 Suricata 检查</button>
+                </span>
+                {% if detect_status.available %}
                 <button type="submit" name="detect" class="layui-btn btn-detect">运行 Detect 检查</button>
+                {% endif %}
             </div>
         </div>
 
@@ -80,6 +108,18 @@ layui.use(['form', 'layer'], function () {
     var loadRulesBtn = document.getElementById('load_rules_btn');
 
     loadRulesBtn.style.display = 'none';
+
+    // Suricata 未安装：执行按钮禁用，悬停提示（挂在包裹层上——
+    // 浏览器不向 disabled 按钮派发鼠标事件，title 仅作无 JS 兜底）
+    var executeBtn = document.getElementById('execute_btn');
+    if (executeBtn && executeBtn.disabled) {
+        executeBtn.parentElement.addEventListener('mouseenter', function () {
+            layer.tips('请先安装 Suricata，再执行检查', executeBtn, {
+                tips: [1, '#c46a4a'],
+                time: 2000
+            });
+        });
+    }
 
     function checkContentCompliance() {
         var content = fileContentEdit.value.trim();

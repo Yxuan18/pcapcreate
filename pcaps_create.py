@@ -16,68 +16,85 @@ import os
 import random
 import re
 
+from utils import PCAP_DIR
 
-def fix_content_length(request_body: str):
+
+def _to_bytes(payload) -> bytes:
+    """载荷统一转 bytes（str 按 UTF-8 编码），长度计算才和线上字节一致。"""
+    if isinstance(payload, str):
+        return payload.encode('utf-8')
+    return payload
+
+
+def fix_content_length(request_body):
     """
     修正HTTP请求内容的Content-Length头部值。
 
     如果请求方法不是GET且Content-Length字段不存在，将自动添加此字段并设置为请求体的长度。
 
-    :param request_body: 原始HTTP请求内容字符串
-    :return: 修正Content-Length头部后的HTTP请求内容字符串
+    :param request_body: 原始HTTP请求内容（str 或 bytes）
+    :return: 修正Content-Length头部后的HTTP请求内容（bytes）
     """
+    request_body = _to_bytes(request_body)
+
     # 处理GET请求中的空格问题
-    if request_body.startswith('GET'):
+    if request_body.startswith(b'GET'):
         # 正则表达式匹配GET后的所有字符直到HTTP/，替换其中的空格为+
-        request_body = re.sub(r'GET ([^\r\n]*?) HTTP/', lambda m: 'GET ' + m.group(1).replace(' ', '+') + ' HTTP/', request_body)
+        request_body = re.sub(rb'GET ([^\r\n]*?) HTTP/',
+                              lambda m: b'GET ' + m.group(1).replace(b' ', b'+') + b' HTTP/',
+                              request_body)
 
     # 尝试分割请求头和请求体（支持 \r\n\r\n 或 \n\n 两种格式）
     # 先尝试 \r\n\r\n，再尝试 \n\n
-    header, _, body = request_body.partition('\r\n\r\n')
+    header, _, body = request_body.partition(b'\r\n\r\n')
 
     # 检查是否已存在Content-Length字段
-    content_length_match = re.search(r'Content-Length: (\d+)', header, re.IGNORECASE)
+    content_length_match = re.search(rb'Content-Length: (\d+)', header, re.IGNORECASE)
 
     # 如果存在，则更新长度，否则添加字段
     if content_length_match:
         expected_length = int(content_length_match.group(1))
+        # Content-Length 是字节长度，中文按 UTF-8 编码后字符数 != 字节数
         actual_length = len(body)
         if actual_length != expected_length:
             # 更新Content-Length字段
-            header = re.sub(r'Content-Length: \d+', f'Content-Length: {actual_length}', header, flags=re.IGNORECASE)
+            header = re.sub(rb'Content-Length: \d+', b'Content-Length: %d' % actual_length,
+                            header, flags=re.IGNORECASE)
     else:
         # 对于非GET请求，添加Content-Length字段
-        if not header.startswith('GET'):
+        if not header.startswith(b'GET'):
             actual_length = len(body)
-            header += f'\r\nContent-Length: {actual_length}'
+            header += b'\r\nContent-Length: %d' % actual_length
 
     # 重新组装请求头和请求体
-    updated_request_body = header + '\r\n\r\n' + body
+    updated_request_body = header + b'\r\n\r\n' + body
 
     return updated_request_body
 
 
-def fix_response_content_length(response_body: str):
+def fix_response_content_length(response_body):
     """
     修正HTTP响应的Content-Length头部值。
 
     如果响应中存在Content-Length字段，将根据响应体的长度自动更新该字段。
     如果Content-Length字段不存在，将自动添加该字段并设置为响应体的长度。
 
-    :param response_body: 原始HTTP响应内容字符串
-    :return: 修正Content-Length头部后的HTTP响应内容字符串
+    :param response_body: 原始HTTP响应内容（str 或 bytes）
+    :return: 修正Content-Length头部后的HTTP响应内容（bytes）
     """
+    response_body = _to_bytes(response_body)
+
     # 确保是HTTP响应
-    if not response_body.startswith('HTTP/'):
+    if not response_body.startswith(b'HTTP/'):
         raise ValueError("Invalid HTTP response format")
 
     # 尝试分割响应头和响应体（支持 \r\n\r\n 或 \n\n 两种格式）
-    header, _, body = response_body.partition('\r\n\r\n')
+    header, _, body = response_body.partition(b'\r\n\r\n')
 
     # 检查是否已存在Content-Length字段
-    content_length_match = re.search(r'Content-Length: (\d+)', header, re.IGNORECASE)
+    content_length_match = re.search(rb'Content-Length: (\d+)', header, re.IGNORECASE)
 
-    # 计算实际响应体长度
+    # 计算实际响应体长度（字节）
     actual_length = len(body)
 
     # 如果存在，则更新长度，否则添加字段
@@ -85,26 +102,29 @@ def fix_response_content_length(response_body: str):
         expected_length = int(content_length_match.group(1))
         if actual_length != expected_length:
             # 更新Content-Length字段
-            header = re.sub(r'Content-Length: \d+', f'Content-Length: {actual_length}', header, flags=re.IGNORECASE)
+            header = re.sub(rb'Content-Length: \d+', b'Content-Length: %d' % actual_length,
+                            header, flags=re.IGNORECASE)
     else:
         # 添加Content-Length字段
-        header += f'\r\nContent-Length: {actual_length}'
+        header += b'\r\nContent-Length: %d' % actual_length
 
     # 重新组装响应头和响应体
-    updated_response_body = header + '\r\n\r\n' + body
+    updated_response_body = header + b'\r\n\r\n' + body
 
     return updated_response_body
 
 
-def creat_http_pcap(request_str: str, response_str: str, pcapname=''):
+def creat_http_pcap(request_str, response_str, pcapname=''):
     """
     创建一个模拟HTTP请求和响应的PCAP文件。
     这个函数可以用，而且可以用 Detect 校验
 
-    :param request_str: HTTP请求内容
-    :param response_str: HTTP响应内容
+    :param request_str: HTTP请求内容（str 按 UTF-8 编码，或 bytes）
+    :param response_str: HTTP响应内容（str 按 UTF-8 编码，或 bytes）
     :param pcapname: 生成的PCAP文件名称
     """
+    request_bytes = _to_bytes(request_str)
+    response_bytes = _to_bytes(response_str)
 
     dst_port = 8000
     src_mac = "c0:25:a5:80:a4:79"
@@ -127,16 +147,17 @@ def creat_http_pcap(request_str: str, response_str: str, pcapname=''):
                              ack=syn_ack_packet[TCP].seq + 1)
 
     http_request_packet = ipsrc / TCP(sport=src_port, dport=dst_port, flags=24, seq=ack_packet[TCP].seq,
-                                      ack=syn_ack_packet[TCP].seq + 1) / request_str.encode()
+                                      ack=syn_ack_packet[TCP].seq + 1) / Raw(load=request_bytes)
 
     httpack = ipdst / TCP(sport=dst_port, dport=src_port, seq=http_request_packet[TCP].ack,
-                          ack=http_request_packet[TCP].seq + len(request_str), flags='A')
+                          # TCP 序列号按字节推进，中文 UTF-8 编码后字符数 != 字节数
+                          ack=http_request_packet[TCP].seq + len(request_bytes), flags='A')
 
     http_response_packet = ipdst / TCP(sport=dst_port, dport=src_port, flags=24, seq=httpack[TCP].seq,
-                                       ack=httpack[TCP].ack) / response_str.encode()
+                                       ack=httpack[TCP].ack) / Raw(load=response_bytes)
 
     fin_packet = ipsrc / TCP(sport=src_port, dport=dst_port, flags="FA", seq=http_response_packet[TCP].ack,
-                             ack=http_response_packet[TCP].seq + len(response_str))
+                             ack=http_response_packet[TCP].seq + len(response_bytes))
 
     ack_packet_close = ipdst / TCP(sport=dst_port, dport=src_port, flags="A", seq=fin_packet[TCP].ack,
                                    ack=fin_packet[TCP].seq + 1)
@@ -149,13 +170,11 @@ def creat_http_pcap(request_str: str, response_str: str, pcapname=''):
 
     http_traffic = [syn_packet, syn_ack_packet, ack_packet, http_request_packet, httpack, http_response_packet,
                     fin_packet, ack_packet_close, ack_packet_close2, fin_packet_ack]
-    pcap_files_dir = str(Path(__file__).resolve().parent / 'pcapss/')
-    file_paths = pcap_files_dir + pcapname + '.pcap'
-
-    # 确保保存文件的目录存在
-    directory = os.path.dirname(file_paths)
-    if not os.path.exists(directory):
-        os.makedirs(directory)  # 创建目录，如果不存在的话
+    # 与 download 共用 utils.PCAP_DIR，下载端点才能找到生成的文件。
+    # 不能 str(Path(.../ 'pcapss/')) 再字符串拼接——pathlib 会去掉尾斜杠，
+    # 'pcapss' + name 拼出 'pcapssXXX.pcap' 落在上级目录。
+    os.makedirs(PCAP_DIR, exist_ok=True)
+    file_paths = os.path.join(PCAP_DIR, f'{pcapname}.pcap')
 
     wrpcap(file_paths, http_traffic)
     return file_paths
@@ -178,7 +197,8 @@ class PcapNetworkConfig:
         if self.src_port == 0:
             self.src_port = random.randint(20000, 50000)
         if not self.output_dir:
-            self.output_dir = str(Path(__file__).resolve().parent / "pcapss")
+            # 与 creat_http_pcap / download 共用 utils.PCAP_DIR
+            self.output_dir = PCAP_DIR
 
 
 

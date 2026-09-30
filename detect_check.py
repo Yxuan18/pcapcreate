@@ -13,7 +13,7 @@ from flask import Blueprint, render_template, request, jsonify
 import surui_de
 import run2
 from suricata_check import get_sorted_files
-from utils import PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir
+from utils import PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir, get_detect_status
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ def check():
     """
     rule_files = get_sorted_files(rule_files_dir, '.rules')
     pcap_files = get_sorted_files(pcap_files_dir, ['.pcap', '.pcapng'])
+    detect_status = get_detect_status()
 
     if request.method == 'POST':
         selected_rule = request.form.get('file_select')
@@ -38,6 +39,7 @@ def check():
                 rule_files=rule_files,
                 pcap_files=pcap_files,
                 error='请选择规则文件和 PCAP 文件',
+                detect_status=detect_status,
                 previous_page='suricata_check.check',
                 next_page='generate_pcap.generate'
             )
@@ -45,6 +47,19 @@ def check():
         # 使用 os.path.join 确保跨平台安全
         rule_path = os.path.join(rule_files_dir, selected_rule)
         pcap_path = os.path.join(pcap_files_dir, selected_pcap)
+
+        # Detect 未配置时拦截（前端按钮已隐藏，这里防直接 POST 绕过）
+        if not detect_status['available']:
+            logger.warning("Detect 未配置，拒绝执行: %r", detect_status['bin'])
+            return render_template(
+                'detect_check.html',
+                rule_files=rule_files,
+                pcap_files=pcap_files,
+                error='本机未配置 Detect（安装目录不存在或 bin_ 为空），无法执行检测',
+                detect_status=detect_status,
+                previous_page='suricata_check.check',
+                next_page='generate_pcap.generate'
+            )
 
         return render_template(
             'intermediate.html',
@@ -60,6 +75,7 @@ def check():
         'detect_check.html',
         rule_files=rule_files,
         pcap_files=pcap_files,
+        detect_status=get_detect_status(),
         previous_page='suricata_check.check',
         next_page='generate_pcap.generate'
     )
@@ -77,6 +93,22 @@ def run_detect():
 
     if not rule_path or not pcap_path:
         return "缺少必要参数: rule_path 或 pcap_path", 400
+
+    # Detect 未配置时直接拦下——否则 run2 会因 bin_ 为空产生 500
+    detect_status = get_detect_status()
+    if not detect_status['available']:
+        logger.warning("Detect 未配置，拒绝执行: %r", detect_status['bin'])
+        rule_files = get_sorted_files(rule_files_dir, '.rules')
+        pcap_files = get_sorted_files(pcap_files_dir, ['.pcap', '.pcapng'])
+        return render_template(
+            'detect_check.html',
+            rule_files=rule_files,
+            pcap_files=pcap_files,
+            error='本机未配置 Detect（安装目录不存在或 bin_ 为空），无法执行检测',
+            detect_status=detect_status,
+            previous_page='suricata_check.check',
+            next_page='generate_pcap.generate'
+        )
 
     pcap_filename = os.path.basename(pcap_path).split(".")[0]
 

@@ -26,9 +26,9 @@ def generate():
         if not dst_ip:
             return "目的 IP 是必填项", 400
 
-        # 解析载荷模板
-        payload = parse_templates(payload_str).encode('latin-1')
-        res_payload = parse_templates(res_payload_str).encode('latin-1')
+        # 解析载荷模板（返回 bytes，模板原始字节与 UTF-8 文本直接拼接）
+        payload = parse_templates(payload_str)
+        res_payload = parse_templates(res_payload_str)
 
         # 构建 TCP 会话基础结构
         session = build_tcp_session(src_ip, dst_ip, src_port, dst_port)

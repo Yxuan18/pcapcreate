@@ -8,6 +8,7 @@ import logging
 import os
 import random
 import re
+import shutil
 import string
 from datetime import datetime
 from typing import Optional
@@ -18,7 +19,7 @@ from flask import Blueprint, render_template, request, redirect, url_for
 from werkzeug.utils import secure_filename
 
 import surui_de
-from utils import PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir
+from utils import PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir, get_detect_status
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,35 @@ def clear_logs() -> None:
             pass  # 文件不存在，忽略
         except OSError as e:
             logger.exception("删除日志文件 %s 失败", file_name)
+
+
+def get_suricata_status() -> dict:
+    """
+    探测本地 Suricata 可用性：配置路径（surui_de.suri_path）优先，PATH 兜底。
+
+    Returns:
+        {'available': bool, 'bin': str, 'version': str}
+        bin 为实际可执行的路径；不可用时为配置路径，供页面提示定位。
+    """
+    configured = surui_de.suri_path.get('bin_', '')
+    candidates = [configured, shutil.which('suricata')]
+    bin_path = next(
+        (c for c in candidates if c and os.path.isfile(c) and os.access(c, os.X_OK)),
+        ''
+    )
+    if not bin_path:
+        return {'available': False, 'bin': configured, 'version': ''}
+
+    version = ''
+    try:
+        result = subprocess.run(
+            [bin_path, '-V'], capture_output=True, timeout=10
+        )
+        version = (result.stdout + result.stderr).decode('utf-8', errors='ignore').strip()
+    except (OSError, subprocess.TimeoutExpired) as e:
+        # 版本探测失败不等于不可用，只降级为无版本信息
+        logger.warning("获取 Suricata 版本失败: %s", e)
+    return {'available': True, 'bin': bin_path, 'version': version}
 
 
 def get_sorted_files(directory: str, suffixes: str | list[str], display_count: Optional[int] = None) -> list[str]:
@@ -122,6 +152,8 @@ def check():
     """
     rule_files = get_sorted_files(rule_files_dir, '.rules')
     pcap_files = get_sorted_files(pcap_files_dir, ['.pcap', '.pcapng'])
+    suricata_status = get_suricata_status()
+    detect_status = get_detect_status()
 
     output = ""
 
@@ -143,7 +175,7 @@ def check():
             if not safe_pcap_path.startswith(os.path.realpath(pcap_files_dir) + os.sep):
                 return "非法 PCAP 文件路径", 400
 
-        suri_bin = surui_de.suri_path['bin_']
+        suri_bin = suricata_status['bin']
         suri_yaml = surui_de.suri_path['yaml']
         selected_rule_path = safe_rule_path or rule_files_dir
         selected_pcap_path = safe_pcap_path or pcap_files_dir
@@ -186,6 +218,19 @@ def check():
 
         # 执行 Suricata 检测
         if 'execute' in request.form:
+            # Suricata 不可用时服务端再挡一道（前端 disabled 可被直接 POST 绕过）
+            if not suricata_status['available']:
+                logger.warning("Suricata 不可用，拒绝执行检查: %s", suricata_status['bin'])
+                return render_template(
+                    'suricata_check.html',
+                    rule_files=rule_files,
+                    pcap_files=pcap_files,
+                    suricata_status=suricata_status,
+                    detect_status=detect_status,
+                    error='未检测到本地 Suricata，无法执行检查',
+                    previous_page='home',
+                    next_page='detect_check.check'
+                )
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = process.communicate()
             output = stdout.decode() + stderr.decode()
@@ -214,6 +259,19 @@ def check():
                 )
 
         if 'detect' in request.form:
+            # Detect 未配置时拦截（前端按钮已隐藏，这里防直接 POST 绕过）
+            if not detect_status['available']:
+                logger.warning("Detect 未配置，拒绝执行: %r", detect_status['bin'])
+                return render_template(
+                    'suricata_check.html',
+                    rule_files=rule_files,
+                    pcap_files=pcap_files,
+                    suricata_status=suricata_status,
+                    detect_status=detect_status,
+                    error='本机未配置 Detect（安装目录不存在或 bin_ 为空），无法执行检测',
+                    previous_page='home',
+                    next_page='detect_check.check'
+                )
             message = "即将运行 Detect 检查，请稍后"
             redirect_url = url_for('detect_check.run_detect', rule_path=selected_rule_path, pcap_path=selected_pcap_path)
             script = f'setTimeout(function() {{ window.location.href = "{redirect_url}"; }}, 2000);'
@@ -231,6 +289,8 @@ def check():
         'suricata_check.html',
         rule_files=rule_files,
         pcap_files=pcap_files,
+        suricata_status=suricata_status,
+        detect_status=detect_status,
         previous_page='home',
         next_page='detect_check.check'
     )

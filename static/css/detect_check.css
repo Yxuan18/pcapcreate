@@ -69,3 +69,26 @@
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(91, 179, 166, 0.3);
 }
+/* ─────────────────────────────────────────────────────────────────
+   DETECT MISSING — 未配置时的错误横幅与替代提示
+   ───────────────────────────────────────────────────────────────── */
+.missing-banner {
+    margin-bottom: 18px;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(196, 106, 74, 0.08);
+    border: 1px solid rgba(196, 106, 74, 0.28);
+    color: #8a5a48;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.detect-missing-hint {
+    display: inline-block;
+    padding: 9px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    border: 1px dashed var(--border);
+    color: var(--text-secondary);
+    font-size: 13px;
+}
