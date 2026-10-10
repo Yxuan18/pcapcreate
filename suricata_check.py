@@ -31,6 +31,49 @@ SURICATA_ALERT_PATTERNS = (
 LOG_FILES = ('suricata.log', 'eve.json', 'fast.log', 'stats.log')
 ALLOWED_EXTENSIONS = ('.pcap', '.pcapng', '.rules')
 
+# PCAP 文件魔数
+PCAP_MAGIC_BIG_ENDIAN = b'\xa1\xb2\xc3\xd4'   # 大端序
+PCAP_MAGIC_LITTLE_ENDIAN = b'\xd4\xc3\xb2\xa1'  # 小端序
+PCAPNG_MAGIC = b'\x0a\x0d\x0d\x0a'             # PCAPNG
+
+
+def verify_pcap_file(file_stream, filename: str) -> bool:
+    """
+    校验文件内容是否为合法的 PCAP 或 PCAPNG 文件。
+
+    通过读取文件头魔数来判断，而非依赖后缀。
+    保存后返回前会恢复文件指针。
+
+    Args:
+        file_stream: 已打开的文件流（必须可读）
+        filename: 文件名（用于日志）
+
+    Returns:
+        True 是合法 PCAP/PCAPNG 文件，False 不是
+    """
+    try:
+        header = file_stream.read(4)
+        if not header or len(header) < 4:
+            logger.warning("文件 %s 太短，无法读取魔数", filename)
+            return False
+
+        # 恢复文件指针（供后续 save() 使用）
+        file_stream.seek(0)
+
+        if header == PCAP_MAGIC_BIG_ENDIAN or header == PCAP_MAGIC_LITTLE_ENDIAN:
+            return True
+        if header == PCAPNG_MAGIC:
+            return True
+
+        logger.warning("文件 %s 不是有效的 PCAP/PCAPNG 文件，魔数: %s",
+                       filename, header.hex())
+        return False
+
+    except OSError:
+        logger.exception("读取文件 %s 头失败", filename)
+        return False
+
+
 # 蓝图定义
 suricata_check = Blueprint('suricata_check', __name__, template_folder='./')
 
@@ -131,6 +174,10 @@ def upload_pcap():
         return "Invalid file name", 400
 
     if filename.endswith('.pcap') or filename.endswith('.pcapng'):
+        # 先校验文件内容是否为合法的 PCAP/PCAPNG
+        if not verify_pcap_file(file, filename):
+            return "Invalid PCAP file content", 400
+        file.seek(0)  # 重置指针后再保存
         file.save(os.path.join(pcap_files_dir, filename))
         return "PCAP File uploaded successfully", 200
     elif filename.endswith('.rules'):
