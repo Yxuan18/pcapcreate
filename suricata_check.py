@@ -74,6 +74,94 @@ def verify_pcap_file(file_stream, filename: str) -> bool:
         return False
 
 
+def verify_rules_file(file_stream, filename: str) -> tuple[bool, str]:
+    """
+    校验文件内容是否符合 Suricata 规则语法。
+
+    Suricata 规则格式：action protocol src dst direction (options) sid:xxx;
+    每行可以是：
+    - 空行（跳过）
+    - 注释行（# 开头，跳过）
+    - 有效规则（必须包含 action、protocol、方向和括号内选项）
+
+    Args:
+        file_stream: 已打开的文件流
+        filename: 文件名（用于日志）
+
+    Returns:
+        (True, '') 校验通过
+        (False, '错误信息') 校验失败，包含失败原因
+    """
+    try:
+        content = file_stream.read().decode('utf-8', errors='replace')
+    except OSError:
+        logger.exception("读取文件 %s 失败", filename)
+        return False, "文件读取失败"
+
+    # 常见 action 和 protocol
+    ACTIONS = {'alert', 'pass', 'drop', 'reject', 'rejectsrc', 'rejectdst', 'sdrop', 'log'}
+    PROTOCOLS = {
+        'tcp', 'udp', 'icmp', 'http', 'http2', 'ftp', 'smtp', 'ssh', 'dns',
+        'tls', 'ssl', 'ssh', 'dcerpc', 'nfs', 'smb', 'imap', 'pop', 'sip',
+        'modbus', 'enip', 'dnp3', 'ftp-data', 'rdp', 'snmp', 'ip', 'vlan',
+    }
+    DIRECTIONS = {'->', '<>', '<-'}
+
+    lines = content.splitlines()
+    for lineno, line in enumerate(lines, 1):
+        stripped = line.strip()
+
+        # 跳过空行和注释行
+        if not stripped or stripped.startswith('#'):
+            continue
+
+        # 检查括号配对（规则主体在括号内）
+        if stripped.count('(') != stripped.count(')'):
+            logger.warning("文件 %s 第 %d 行：括号不配对", filename, lineno)
+            return False, f"第 {lineno} 行：括号不配对"
+
+        # 最小结构：必须包含方向符号和括号
+        has_direction = any(d in stripped for d in DIRECTIONS)
+        has_paren = '(' in stripped and ')' in stripped
+        if not (has_direction and has_paren):
+            logger.warning("文件 %s 第 %d 行：缺少方向符号或括号", filename, lineno)
+            return False, f"第 {lineno} 行：缺少方向符号或括号"
+
+        # 提取 action（第一个词）
+        parts = stripped.split()
+        if not parts:
+            continue
+        action = parts[0]
+        if action not in ACTIONS:
+            logger.warning("文件 %s 第 %d 行：未知 action '%s'，期望 %s",
+                          filename, lineno, action, ACTIONS)
+            return False, f"第 {lineno} 行：未知 action '{action}'"
+
+        # 提取 protocol（第二个词，必须是已知协议）
+        if len(parts) < 2:
+            logger.warning("文件 %s 第 %d 行：缺少 protocol", filename, lineno)
+            return False, f"第 {lineno} 行：缺少 protocol"
+
+        protocol = parts[1]
+        if protocol not in PROTOCOLS:
+            logger.warning("文件 %s 第 %d 行：未知 protocol '%s'",
+                          filename, lineno, protocol)
+            return False, f"第 {lineno} 行：未知 protocol '{protocol}'"
+
+        # 检查括号内是否有 sid
+        paren_start = stripped.index('(')
+        paren_end = stripped.rindex(')')
+        options_block = stripped[paren_start + 1:paren_end]
+
+        # sid 格式：sid:数字;（sid 前后可能有空格）
+        if not re.search(r'\bsid\s*:\s*\d+\s*;', options_block):
+            logger.warning("文件 %s 第 %d 行：缺少 sid（格式应为 sid:数字;）", filename, lineno)
+            return False, f"第 {lineno} 行：缺少 sid（格式应为 sid:数字;）"
+
+    # 全部通过或仅空文件
+    return True, ""
+
+
 # 蓝图定义
 suricata_check = Blueprint('suricata_check', __name__, template_folder='./')
 
@@ -89,7 +177,7 @@ def clear_logs() -> None:
             os.remove(file_name)
         except FileNotFoundError:
             pass  # 文件不存在，忽略
-        except OSError as e:
+        except OSError:
             logger.exception("删除日志文件 %s 失败", file_name)
 
 
@@ -181,6 +269,11 @@ def upload_pcap():
         file.save(os.path.join(pcap_files_dir, filename))
         return "PCAP File uploaded successfully", 200
     elif filename.endswith('.rules'):
+        # 校验规则文件语法
+        ok, err = verify_rules_file(file, filename)
+        if not ok:
+            return err, 400
+        file.seek(0)  # 重置指针后再保存
         file.save(os.path.join(rule_files_dir, filename))
         return "RULES File uploaded successfully", 200
     else:
@@ -367,6 +460,6 @@ def load_rules_content():
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read(), 200, {'Content-Type': 'text/plain; charset=utf-8'}
-    except OSError as e:
+    except OSError:
         logger.exception("读取规则文件失败: %s", file_name)
         return "文件读取失败", 500
