@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+        padding: 20px 0;
+    }
+    .stat-card {
+        background: var(--card-bg, #fff);
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+    .stat-name {
+        font-size: 14px;
+        color: #888;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .stat-count {
+        font-size: 36px;
+        font-weight: 600;
+        color: var(--primary, #1E9FFF);
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-label {
+        font-size: 12px;
+        color: #aaa;
+        margin-top: 4px;
+    }
+    .page-title {
+        margin-bottom: 8px;
+        color: var(--text, #333);
+    }
+    .page-subtitle {
+        color: #888;
+        margin-bottom: 32px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="page-title">使用统计</h2>
+    <p class="page-subtitle">各功能累计调用次数 · <a href="{{ url_for('count') }}?format=json">JSON</a></p>
+
+    <div class="stats-grid layui-anim layui-anim-fadein">
+        {% for name, count in counts.items() %}
+        <div class="stat-card">
+            <div class="stat-name">{{ name }}</div>
+            <div class="stat-count">{{ count }}</div>
+            <div class="stat-label">次</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if last_updated %}
+    <p style="color:#aaa; font-size:12px; text-align:center;">
+        最后更新：{{ last_updated }}
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
