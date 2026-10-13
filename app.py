@@ -10,7 +10,7 @@ import logging
 import os
 import shutil
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 # 蓝图导入
 from generate_pcap import generate_pcap as generate_pcap_blueprint
@@ -135,8 +135,12 @@ def health():
 
 @app.route('/count')
 def count():
-    """使用统计：各功能累计调用次数。"""
-    return get_gen_count(), 200
+    """使用统计：浏览器访问返回美化页面，API 请求返回 JSON。"""
+    counts = get_gen_count()
+    last_updated = counts.pop('last_updated', None)
+    if request.headers.get('Accept') == 'application/json' or request.args.get('format') == 'json':
+        return counts, 200
+    return render_template('count.html', counts=counts, last_updated=last_updated)
 
 
 if __name__ == '__main__':
