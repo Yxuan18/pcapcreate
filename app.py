@@ -20,8 +20,8 @@ from generate_tcp import generate_tcp as generate_tcp_blueprint
 from generate_smtp import generate_smtp as generate_smtp_blueprint
 from suricata_check import suricata_check as suricata_check_blueprint
 from detect_check import detect_check as detect_check_blueprint
-from finance import finance_bp as finance_blueprint
 from download import download_bp
+from utils import get_gen_count
 
 # APScheduler 导入（带兼容性处理）
 try:
@@ -60,8 +60,13 @@ app.register_blueprint(generate_smtp_blueprint)
 app.register_blueprint(suricata_check_blueprint)
 app.register_blueprint(detect_check_blueprint)
 
-# 其他
-app.register_blueprint(finance_blueprint)
+# 其他（可选模块）
+try:
+    from finance import finance_bp as finance_blueprint
+    app.register_blueprint(finance_blueprint)
+    _finance_available = True
+except ImportError:
+    _finance_available = False
 app.register_blueprint(download_bp)
 
 
@@ -116,8 +121,9 @@ def home():
         ('SMTP生成', '/generate_smtp'),
         ('Suricata校验', '/suricata_check'),
         ('Detect校验', '/detect_check'),
-        ('金融监控', '/finance'),
     ]
+    if _finance_available:
+        items.append(('金融监控', '/finance'))
     return render_template('home.html', title=title, items=items, next_page='pcap.generate_pcap.generate')
 
 
@@ -125,6 +131,12 @@ def home():
 def health():
     """健康检查端点。"""
     return {'status': 'ok'}, 200
+
+
+@app.route('/count')
+def count():
+    """使用统计：各功能累计调用次数。"""
+    return get_gen_count(), 200
 
 
 if __name__ == '__main__':

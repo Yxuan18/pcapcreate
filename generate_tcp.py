@@ -5,7 +5,7 @@ import time
 
 from flask import Blueprint, render_template, request, redirect, url_for
 from scapy.all import wrpcap
-from utils import parse_templates, download_file, PCAP_DIR
+from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
 from tcp_utils import build_tcp_session, send_stream, build_tcp_teardown
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ def generate():
         filename = f"tcp_{int(time.time())}.pcap"
         filepath = os.path.join(PCAP_DIR, filename)
         wrpcap(filepath, pkts)
-
+        inc_gen_count("generate_tcp")
         return redirect(url_for('generate_tcp.download_tcp_file', filename=filename))
 
     return render_template(

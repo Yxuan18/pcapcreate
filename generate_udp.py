@@ -11,7 +11,7 @@ import time
 from flask import Blueprint, render_template, request, redirect, url_for
 from scapy.all import Ether, IP, UDP, Raw, wrpcap
 
-from utils import parse_templates, download_file, PCAP_DIR
+from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ def generate():
         wrpcap(filepath, packets)
 
         logger.info("生成 UDP PCAP: %s", filename)
+        inc_gen_count("generate_udp")
         return redirect(url_for('generate_udp.download_udp_file', filename=filename))
 
     return render_template(

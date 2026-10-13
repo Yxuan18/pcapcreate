@@ -1,6 +1,8 @@
 # -- coding: utf-8 --
 import base64
 import binascii
+import fcntl
+import json
 import logging
 import os
 import re
@@ -61,6 +63,75 @@ def download_file(directory: str, filename: str):
     通用文件下载函数
     """
     return send_from_directory(directory, filename, as_attachment=True)
+
+
+GEN_COUNT_FILE = os.path.join(BASE_DIR, 'gen_count.json')
+
+# 各 generate 功能名称枚举（与 gen_count.json 的 key 一一对应）
+GEN_COUNT_NAMES = frozenset([
+    'generate_pcap',
+    'generate_udp',
+    'generate_icmp',
+    'generate_tcp',
+    'generate_smtp',
+    'suricata_check',
+])
+
+
+def _read_count_file() -> dict:
+    """读取计数文件，不存在则返回空结构。"""
+    if not os.path.isfile(GEN_COUNT_FILE):
+        return {}
+    try:
+        with open(GEN_COUNT_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _write_count_file(data: dict) -> None:
+    """原子写入计数文件（flock 保护）。"""
+    tmp = GEN_COUNT_FILE + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, GEN_COUNT_FILE)
+
+
+def get_gen_count() -> dict:
+    """
+    读取所有功能的使用计数。
+
+    Returns:
+        {'generate_pcap': 0, 'generate_udp': 0, ...}
+    """
+    data = _read_count_file()
+    return {name: data.get(name, 0) for name in GEN_COUNT_NAMES}
+
+
+def inc_gen_count(name: str) -> int:
+    """
+    指定功能计数 +1（flock 原子递增）。
+
+    :param name: 功能名称，必须在 GEN_COUNT_NAMES 中
+    :return: 递增后的值
+    """
+    if name not in GEN_COUNT_NAMES:
+        raise ValueError(f"未知功能名称: {name}")
+
+    lock_path = GEN_COUNT_FILE + '.lock'
+    with open(lock_path, 'w') as lock_fd:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        try:
+            data = _read_count_file()
+            data.setdefault(name, 0)
+            data[name] += 1
+            data['last_updated'] = __import__('datetime').datetime.now().isoformat()
+            _write_count_file(data)
+            return data[name]
+        finally:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
 
 
 def get_detect_status() -> dict:

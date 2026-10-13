@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 from http_requests import standard_get, ordinary_post, form_submission
 from http_responses import http_response_200, http_response_302, http_response_404, http_response_502
 from pcaps_create import creat_http_pcap, fix_content_length, fix_response_content_length
-from utils import parse_templates, download_file, PCAP_DIR
+from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ def generate():
             filename = os.path.basename(file_path)
 
             logger.info("生成 PCAP 文件: %s", filename)
+            inc_gen_count("generate_pcap")
             return redirect(url_for('generate_pcap.download_pcap_file', filename=filename))
 
     return render_template(

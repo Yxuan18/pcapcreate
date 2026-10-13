@@ -11,7 +11,7 @@ import time
 
 from flask import Blueprint, render_template, request, redirect, url_for
 from scapy.all import wrpcap
-from utils import parse_templates, download_file, PCAP_DIR
+from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
 from tcp_utils import build_tcp_pkt, send_stream, build_tcp_session, build_tcp_teardown
 
 logger = logging.getLogger(__name__)
@@ -227,7 +227,7 @@ def generate_smtp_pcap():
         filename = f"smtp_{int(time.time())}.pcap"
         filepath = os.path.join(PCAP_DIR, filename)
         wrpcap(filepath, pkts)
-
+        inc_gen_count("generate_smtp")
         return redirect(url_for('generate_smtp.download_smtp_file', filename=filename))
 
     return render_template(

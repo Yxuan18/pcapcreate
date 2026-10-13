@@ -19,7 +19,7 @@ from flask import Blueprint, render_template, request, redirect, url_for
 from werkzeug.utils import secure_filename
 
 import surui_de
-from utils import PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir, get_detect_status
+from utils import PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir, get_detect_status, inc_gen_count
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +374,7 @@ def check():
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = process.communicate()
             output = stdout.decode() + stderr.decode()
+            inc_gen_count("suricata_check")
 
             # 检测到告警时跳转到 Detect 检查
             if any(pattern in output for pattern in SURICATA_ALERT_PATTERNS):
