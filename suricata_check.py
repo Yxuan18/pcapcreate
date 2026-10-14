@@ -31,10 +31,80 @@ SURICATA_ALERT_PATTERNS = (
 LOG_FILES = ('suricata.log', 'eve.json', 'fast.log', 'stats.log')
 ALLOWED_EXTENSIONS = ('.pcap', '.pcapng', '.rules')
 
+
 # PCAP 文件魔数
 PCAP_MAGIC_BIG_ENDIAN = b'\xa1\xb2\xc3\xd4'   # 大端序
 PCAP_MAGIC_LITTLE_ENDIAN = b'\xd4\xc3\xb2\xa1'  # 小端序
 PCAPNG_MAGIC = b'\x0a\x0d\x0d\x0a'             # PCAPNG
+
+# 敏感路径正则：匹配常见的绝对路径模式（可能泄漏部署信息）
+_SENSITIVE_PATH_PATTERN = re.compile(
+    r'(^|/)(usr|opt|etc|var|home|Users|Applications|Clash|Meta|'
+    r'\.config|'
+    r'/[a-zA-Z0-9_.-]+){1,3}/[^/\s]+'  # 路径段
+)
+
+
+def _sanitize_output(output: str) -> str:
+    """
+    过滤 Suricata 输出中的敏感路径信息，防止路径泄漏攻击。
+
+    替换规则：
+    - 绝对路径 → [路径已隐藏]
+    - 配置文件路径中的实际路径 → [配置已隐藏]
+    - socket 路径 → [socket 已隐藏]
+
+    Args:
+        output: 原始 stdout/stderr 输出
+
+    Returns:
+        过滤后的安全输出
+    """
+    lines = output.splitlines()
+    safe_lines = []
+    for line in lines:
+        # 跳过包含完整绝对路径的调试信息行
+        stripped = line.strip()
+        if (
+            # Suricata 版本/构建信息
+            'This is' in line and ('Suricata' in line or 'Open Source' in line) or
+            # 配置加载详情（包含配置文件路径）
+            stripped.startswith('Loading configuration') or
+            'config' in line.lower() and '.yaml' in line.lower() or
+            # Socket 相关（包含 socket 路径）
+            'socket' in line.lower() or
+            # 规则加载详情
+            'Loading rules' in line or
+            'Loading ' in line and 'rules' in line or
+            # 统计信息中的路径
+            '.yaml' in line or '.conf' in line or
+            # 完整的命令行参数展示
+            ('-' in line and '.yaml' in line and '/') or
+            # 包含多个路径段的复杂行（很可能是路径泄漏）
+            len([p for p in _SENSITIVE_PATH_PATTERN.findall(line)]) > 1
+        ):
+            # 替换路径部分
+            cleaned = _SENSITIVE_PATH_PATTERN.sub('[路径已隐藏]', line)
+            safe_lines.append(cleaned)
+        elif (
+            # 告警相关行保留（包含检测结果信息）
+            'alert' in line.lower() or
+            'Info' in line or
+            'Warning' in line or
+            'Error' in line or
+            'statistics' in line.lower() or
+            'packets' in line.lower() or
+            # 简单的状态信息
+            len(stripped) < 100 and not '/' in stripped
+        ):
+            safe_lines.append(line)
+        else:
+            # 其他行也隐藏路径
+            cleaned = _SENSITIVE_PATH_PATTERN.sub('[路径已隐藏]', line)
+            if cleaned.strip():
+                safe_lines.append(cleaned)
+
+    return '\n'.join(safe_lines)
 
 
 def verify_pcap_file(file_stream, filename: str) -> bool:
@@ -321,13 +391,14 @@ def check():
         selected_pcap_path = safe_pcap_path or pcap_files_dir
 
         # 构建命令（避免 shell 注入）
+        # 注意：移除 -v 参数避免泄漏应用路径、配置路径、socket 路径等敏感信息
         command = [
             suri_bin,
             '-c', suri_yaml,
             '-s', selected_rule_path,
             '-r', selected_pcap_path,
             '-k', 'none',
-            '-v'
+            '-l', 'notice'  # 只输出 notice 及以上级别，不泄漏调试信息
         ]
 
         # 保存新的规则内容
@@ -373,11 +444,13 @@ def check():
                 )
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = process.communicate()
-            output = stdout.decode() + stderr.decode()
+            raw_output = stdout.decode() + stderr.decode()
+            # 过滤敏感路径信息，防止路径泄漏
+            output = _sanitize_output(raw_output)
             inc_gen_count("suricata_check")
 
-            # 检测到告警时跳转到 Detect 检查
-            if any(pattern in output for pattern in SURICATA_ALERT_PATTERNS):
+            # 检测到告警时跳转到 Detect 检查（使用原始输出检测，过滤后的输出可能丢失特征）
+            if any(pattern in raw_output for pattern in SURICATA_ALERT_PATTERNS):
                 clear_logs()
                 message = "即将运行 Detect 检查，请稍后"
                 redirect_url = url_for('detect_check.run_detect', rule_path=selected_rule_path, pcap_path=selected_pcap_path)

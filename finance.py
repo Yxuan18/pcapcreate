@@ -5,7 +5,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Semaphore
 from typing import Any, Callable
 
 from flask import Blueprint, jsonify, render_template, request
@@ -61,11 +61,14 @@ _PROXY_HTTP = os.getenv("FINANCE_PROXY_HTTP", "socks5://127.0.0.1:7890")
 _PROXY_HTTPS = os.getenv("FINANCE_PROXY_HTTPS", "socks5://127.0.0.1:7890")
 PROXIES: dict[str, str] = {"http": _PROXY_HTTP, "https": _PROXY_HTTPS}
 
+# 缓存：TTL 20 秒，同时只允许 2 个冷请求向上游穿透
 _CACHE: dict[str, Any] = {
     "data": None,
     "expires_at": 0.0,
+    "fetching": False,  # 标记是否有请求正在从上游获取数据
 }
 _CACHE_LOCK = Lock()
+_MAX_CONCURRENT_FETCH = Semaphore(2)  # 最多 2 个并发冷请求
 
 
 # -------------------------------------------------------------------
@@ -335,10 +338,10 @@ def build_finance_payload() -> dict[str, Any]:
 
 
 def get_finance_payload(force_refresh: bool = False) -> dict[str, Any]:
-    """带 TTL 缓存的行情获取入口。"""
+    """带 TTL 缓存 + 并发限制的行情获取入口。"""
     now = time.time()
 
-    # 锁内只做缓存读取，避免所有请求串行化
+    # 快速路径：缓存命中
     with _CACHE_LOCK:
         cached_data = _CACHE.get("data")
         if (
@@ -350,20 +353,104 @@ def get_finance_payload(force_refresh: bool = False) -> dict[str, Any]:
             payload["from_cache"] = True
             return payload
 
-    # 外部请求在锁外执行，真正实现并发
-    fresh_data = build_finance_payload()
-    fresh_data["from_cache"] = False
+        # 缓存不存在或过期，且没有请求正在获取时，标记开始获取
+        if not _CACHE.get("fetching"):
+            _CACHE["fetching"] = True
+            can_fetch = True
+        else:
+            can_fetch = False
 
+    # 如果有其他请求正在获取，等待并返回缓存或降级数据
+    if not can_fetch:
+        # 等待最多 35 秒（上游超时 + 缓冲）
+        for _ in range(35):
+            time.sleep(1)
+            with _CACHE_LOCK:
+                if now < float(_CACHE.get("expires_at", 0)):
+                    payload = dict(_CACHE.get("data", {}))
+                    payload["from_cache"] = True
+                    return payload
+            now = time.time()
+
+        # 超时后返回降级数据（不阻塞调用方）
+        logger.warning("等待上游数据超时，返回降级 payload")
+        return _get_degraded_payload()
+
+    # 持有信号量，限制并发冷请求数量
+    with _MAX_CONCURRENT_FETCH:
+        try:
+            fresh_data = build_finance_payload()
+            fresh_data["from_cache"] = False
+
+            with _CACHE_LOCK:
+                _CACHE["data"] = fresh_data
+                _CACHE["expires_at"] = time.time() + CACHE_TTL_SECONDS
+
+            return fresh_data
+        finally:
+            with _CACHE_LOCK:
+                _CACHE["fetching"] = False
+
+
+def _get_degraded_payload() -> dict[str, Any]:
+    """返回降级数据，避免请求长时间阻塞。"""
     with _CACHE_LOCK:
-        _CACHE["data"] = fresh_data
-        _CACHE["expires_at"] = time.time() + CACHE_TTL_SECONDS
+        cached = _CACHE.get("data")
+        if cached:
+            payload = dict(cached)
+            payload["from_cache"] = True
+            payload["stale"] = True  # 标记为过期数据
+            return payload
 
-    return fresh_data
+    # 完全没有数据时返回空结构
+    return {
+        "success": False,
+        "updated_at": _now_iso(),
+        "from_cache": False,
+        "stale": True,
+        "stocks": {"hk": {}, "us": {}, "all": {}},
+        "crypto": {
+            "btc": {"symbol": "BTC", "price": None, "currency": "USD"},
+            "box": {"symbol": "BOX", "price": None, "currency": "USD"},
+        },
+        "btc": None,
+        "box": None,
+        "fx": {},
+        "errors": [{"target": "finance_data", "message": "数据获取超时"}],
+    }
 
 
 # -------------------------------------------------------------------
 # Flask routes
 # -------------------------------------------------------------------
+
+
+def _sanitize_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """
+    清理 payload，移除内部配置和敏感字段。
+
+    移除：
+    - cache_ttl_seconds: 内部缓存配置
+    - elapsed_ms: 内部性能指标
+    - source: 暴露上游数据源标识
+    - errors[].target: 内部模块标识
+    """
+    result = {}
+    for key, value in payload.items():
+        if key in ("cache_ttl_seconds", "elapsed_ms"):
+            continue  # 跳过内部配置/性能指标
+        elif key == "errors":
+            # 清理 errors 中的 target 字段
+            result[key] = [{"message": e.get("message", "")} for e in value]
+        elif isinstance(value, dict):
+            # 清理嵌套字典中的 source 字段
+            cleaned = {k: v for k, v in value.items() if k != "source"}
+            result[key] = _sanitize_payload(cleaned) if cleaned else cleaned
+        else:
+            result[key] = value
+    return result
+
+
 @finance_bp.route("/finance")
 def finance_home():
     """金融资产监控主页。"""
@@ -384,6 +471,8 @@ def finance_data():
 
     try:
         payload = get_finance_payload(force_refresh=force_refresh)
+        # 移除内部配置和敏感字段
+        payload = _sanitize_payload(payload)
     except Exception as exc:  # noqa: BLE001
         logger.exception("行情接口整体失败: %s", exc)
         status_code = 500
@@ -393,13 +482,13 @@ def finance_data():
             "from_cache": False,
             "stocks": {"hk": {}, "us": {}, "all": {}},
             "crypto": {
-                "btc": {"symbol": "BTC", "price": None, "currency": "USD", "ok": False},
-                "box": {"symbol": "BOX", "price": None, "currency": "USD", "ok": False},
+                "btc": {"symbol": "BTC", "price": None, "currency": "USD"},
+                "box": {"symbol": "BOX", "price": None, "currency": "USD"},
             },
             "btc": None,
             "box": None,
             "fx": {},
-            "errors": [{"target": "finance_data", "message": str(exc)}],
+            "errors": [{"message": "数据服务暂时不可用"}],
         }
 
     return jsonify(payload), status_code
