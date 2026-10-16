@@ -391,14 +391,13 @@ def check():
         selected_pcap_path = safe_pcap_path or pcap_files_dir
 
         # 构建命令（避免 shell 注入）
-        # 注意：移除 -v 参数避免泄漏应用路径、配置路径、socket 路径等敏感信息
+        # 注意：移除 -v/-l 参数避免泄漏应用路径、配置路径、socket 路径等敏感信息
         command = [
             suri_bin,
             '-c', suri_yaml,
             '-s', selected_rule_path,
             '-r', selected_pcap_path,
-            '-k', 'none',
-            '-l', 'notice'  # 只输出 notice 及以上级别，不泄漏调试信息
+            '-k', 'none'
         ]
 
         # 保存新的规则内容
