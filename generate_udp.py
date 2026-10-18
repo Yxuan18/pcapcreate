@@ -11,7 +11,10 @@ import time
 from flask import Blueprint, render_template, request, redirect, url_for
 from scapy.all import Ether, IP, UDP, Raw, wrpcap
 
-from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
+from utils import (
+    parse_templates, download_file, PCAP_DIR, inc_gen_count, unique_stamp,
+    _parse_int_field, _parse_ip_field, ensure_dir,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +29,18 @@ def generate():
     支持自定义源/目标 IP、端口和负载内容。
     """
     if request.method == 'POST':
-        src_ip = request.form.get('src_ip', '192.168.1.1')
-        dst_ip = request.form.get('dst_ip', '192.168.1.2')
-        src_port = int(request.form.get('src_port', 12345))
-        dst_port = int(request.form.get('dst_port', 80))
+        # M-3 防护：所有外部输入经 _parse_*_field 校验后才进入下游。
+        src_ip, err = _parse_ip_field(request, 'src_ip', default='192.168.1.1', label='源 IP')
+        if err is not None: return err
+        dst_ip, err = _parse_ip_field(request, 'dst_ip', default='192.168.1.2', label='目的 IP')
+        if err is not None: return err
+
+        src_port, err = _parse_int_field(request, 'src_port', default=12345, lo=1, hi=65535, label='源端口')
+        if err is not None: return err
+        dst_port, err = _parse_int_field(request, 'dst_port', default=80, lo=1, hi=65535, label='目的端口')
+        if err is not None: return err
         req_payload = request.form.get('payload', 'UDP Request')
         res_payload = request.form.get('res_payload', 'UDP Response')
-
-        if not dst_ip:
-            return "目的 IP 不能为空", 400
 
         req_payload = parse_templates(content=req_payload)
         res_payload = parse_templates(content=res_payload)
@@ -63,12 +69,12 @@ def generate():
         packets.append(res_pkt)
 
         try:
-            os.makedirs(PCAP_DIR, exist_ok=True)
+            ensure_dir(PCAP_DIR)
         except OSError as e:
             logger.exception("创建目录 %s 失败", PCAP_DIR)
             return f"目录创建失败: {e}", 500
 
-        filename = f"udp_{int(time.time())}.pcap"
+        filename = f"udp_{unique_stamp()}.pcap"
         filepath = os.path.join(PCAP_DIR, filename)
         wrpcap(filepath, packets)
 

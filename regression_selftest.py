@@ -141,10 +141,21 @@ def test_run2_flow():
     original_run = run2.subprocess.run
     run2.subprocess.run = fake_run
     cwd_before = os.getcwd()
+    # H-1 修复后 run2 强制 rules_file 必须在 _RULES_DIR 下、pcaps_file 必须在
+    # _PCAP_DIR 下。test 用了独立临时目录（不在 main() 设置的 PCAP_DIR/RULES_DIR
+    # 下），所以把 run2 的安全基线指到 test 自己的 tmp，再在 try/finally 还原。
+    # 重要：必须用 realpath——macOS 上 /var/folders/.../ 是 /private/var/.../ 的
+    # 符号链接，run2._is_path_within 不调 realpath，传 raw tmp 会前缀失败。
+    original_rules_dir = run2._RULES_DIR
+    original_pcap_dir = run2._PCAP_DIR
+    run2._RULES_DIR = os.path.realpath(str(tmp))
+    run2._PCAP_DIR = os.path.realpath(str(tmp))
     try:
         success, result = run2.main(rules_file=str(rules_file), pcaps_file=str(pcaps_file))
     finally:
         run2.subprocess.run = original_run
+        run2._RULES_DIR = original_rules_dir
+        run2._PCAP_DIR = original_pcap_dir
 
     check("run2 不修改本进程工作目录", os.getcwd() == cwd_before,
           f"cwd 由 {cwd_before} 变为 {os.getcwd()}")
@@ -247,8 +258,13 @@ def test_detect_entry():
         check('未配置时 detect_check 页隐藏 Detect 按钮', '执行 Detect 检查' not in html)
 
         # 2) run_detect 直接访问不再 AttributeError 500
+        #    H-1 修复后路径必须在 PCAP_DIR/RULES_DIR 下；用 main() 在 tmp
+        #    下建的合法目录里的虚拟文件名（不需要真存在——run_detect 在
+        #    拒绝 Detect 路径之前先走未配置分支）。
+        from utils import RULES_DIR, PCAP_DIR
         r = client.get('/run_detect',
-                       query_string={'rule_path': '/tmp/x.rules', 'pcap_path': '/tmp/y.pcap'})
+                       query_string={'rule_path': f'{RULES_DIR}/x.rules',
+                                     'pcap_path': f'{PCAP_DIR}/y.pcap'})
         body = r.get_data(as_text=True)
         check('run_detect 未配置时不返回 500',
               r.status_code == 200 and '未配置' in body,

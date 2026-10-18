@@ -12,7 +12,10 @@ import time
 from flask import Blueprint, render_template, request, redirect, url_for
 from scapy.all import Ether, IP, ICMP, Raw, wrpcap
 
-from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
+from utils import (
+    parse_templates, download_file, PCAP_DIR, inc_gen_count, unique_stamp,
+    _parse_int_field, _parse_ip_field, ensure_dir,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +30,23 @@ def generate():
     支持自定义 ICMP 类型、代码和负载内容。
     """
     if request.method == 'POST':
-        src_ip = request.form.get('src_ip', '192.168.1.1')
-        dst_ip = request.form.get('dst_ip', '192.168.1.2')
-        icmp_type = int(request.form.get('icmp_type', 8))
-        icmp_code = int(request.form.get('icmp_code', 0))
-        icmp_id = int(request.form.get('icmp_id', random.randint(1000, 65535)))
-        icmp_seq = int(request.form.get('icmp_seq', random.randint(1, 1000)))
+        # M-3 防护：所有外部输入经 _parse_*_field 校验后才进入下游。
+        src_ip, err = _parse_ip_field(request, 'src_ip', default='192.168.1.1', label='源 IP')
+        if err is not None: return err
+        dst_ip, err = _parse_ip_field(request, 'dst_ip', default='192.168.1.2', label='目的 IP')
+        if err is not None: return err
+
+        # ICMP type 0-255、code 0-15、id/seq 0-65535
+        icmp_type, err = _parse_int_field(request, 'icmp_type', default=8, lo=0, hi=255, label='ICMP type')
+        if err is not None: return err
+        icmp_code, err = _parse_int_field(request, 'icmp_code', default=0, lo=0, hi=15, label='ICMP code')
+        if err is not None: return err
+        icmp_id, err = _parse_int_field(request, 'icmp_id', default=1000, lo=0, hi=65535, label='ICMP id')
+        if err is not None: return err
+        icmp_seq, err = _parse_int_field(request, 'icmp_seq', default=1, lo=0, hi=65535, label='ICMP seq')
+        if err is not None: return err
         req_payload = request.form.get('payload', 'Hello ICMP Request')
         res_payload = request.form.get('res_payload', 'Hello ICMP Reply')
-
-        if not dst_ip:
-            return "目的 IP 不能为空", 400
 
         req_payload = parse_templates(content=req_payload)
         res_payload = parse_templates(content=res_payload)
@@ -66,12 +75,12 @@ def generate():
         packets.append(res_pkt)
 
         try:
-            os.makedirs(PCAP_DIR, exist_ok=True)
+            ensure_dir(PCAP_DIR)
         except OSError as e:
             logger.exception("创建目录 %s 失败", PCAP_DIR)
             return f"目录创建失败: {e}", 500
 
-        filename = f"icmp_{int(time.time())}.pcap"
+        filename = f"icmp_{unique_stamp()}.pcap"
         filepath = os.path.join(PCAP_DIR, filename)
         wrpcap(filepath, packets)
 

@@ -5,7 +5,10 @@ import time
 
 from flask import Blueprint, render_template, request, redirect, url_for
 from scapy.all import wrpcap
-from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
+from utils import (
+    parse_templates, download_file, PCAP_DIR, inc_gen_count, unique_stamp,
+    _parse_int_field, _parse_ip_field, ensure_dir,
+)
 from tcp_utils import build_tcp_session, send_stream, build_tcp_teardown
 
 logger = logging.getLogger(__name__)
@@ -16,15 +19,22 @@ generate_tcp = Blueprint('generate_tcp', __name__)
 @generate_tcp.route('/generate_tcp', methods=['GET', 'POST'])
 def generate():
     if request.method == 'POST':
-        src_ip = request.form.get('src_ip', '192.168.1.1')
-        dst_ip = request.form.get('dst_ip')
-        src_port = int(request.form.get('src_port', 12345))
-        dst_port = int(request.form.get('dst_port', 80))
+        # M-3 防护：把"取值 + 类型 + 范围"集中到 _parse_*_field。
+        # 之前 int(request.form.get(...)) 让 'abc' / '70000' / 'not-an-ip'
+        # 全部抛 ValueError/TypeError/gaierror，被 Flask 转 500。
+        src_ip, err = _parse_ip_field(request, 'src_ip', default='192.168.1.1', label='源 IP')
+        if err is not None: return err
+        # dst_ip 是必填项，default=None 让 _parse_ip_field 在用户没填时返回 400
+        dst_ip, err = _parse_ip_field(request, 'dst_ip', default=None, label='目的 IP')
+        if err is not None: return err
+
+        src_port, err = _parse_int_field(request, 'src_port', default=12345, lo=1, hi=65535, label='源端口')
+        if err is not None: return err
+        dst_port, err = _parse_int_field(request, 'dst_port', default=80, lo=1, hi=65535, label='目的端口')
+        if err is not None: return err
+
         payload_str = request.form.get('payload', '')
         res_payload_str = request.form.get('res_payload', '')
-
-        if not dst_ip:
-            return "目的 IP 是必填项", 400
 
         # 解析载荷模板（返回 bytes，模板原始字节与 UTF-8 文本直接拼接）
         payload = parse_templates(payload_str)
@@ -64,11 +74,12 @@ def generate():
 
         # 保存文件
         try:
-            os.makedirs(PCAP_DIR, exist_ok=True)
+            ensure_dir(PCAP_DIR)
         except OSError as e:
             logger.exception("创建目录 %s 失败: %s", PCAP_DIR, e)
 
-        filename = f"tcp_{int(time.time())}.pcap"
+        # L 系列：filename 加 8 位 hex 后缀，杜绝同秒内并发同名覆盖。
+        filename = f"tcp_{unique_stamp()}.pcap"
         filepath = os.path.join(PCAP_DIR, filename)
         wrpcap(filepath, pkts)
         inc_gen_count("generate_tcp")

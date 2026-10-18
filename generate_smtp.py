@@ -11,7 +11,10 @@ import time
 
 from flask import Blueprint, render_template, request, redirect, url_for
 from scapy.all import wrpcap
-from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
+from utils import (
+    parse_templates, download_file, PCAP_DIR, inc_gen_count, unique_stamp,
+    _parse_int_field, _parse_ip_field, ensure_dir,
+)
 from tcp_utils import build_tcp_pkt, send_stream, build_tcp_session, build_tcp_teardown
 
 logger = logging.getLogger(__name__)
@@ -37,10 +40,20 @@ def generate_smtp_pcap():
         mail_hostname: 服务器主机名
     """
     if request.method == 'POST':
-        src_ip = request.form.get('src_ip', '192.168.1.100')
-        dst_ip = request.form.get('dst_ip')
-        src_port = int(request.form.get('src_port', random.randint(20000, 60000)))
-        dst_port = int(request.form.get('dst_port', 25))
+        # M-3 防护：所有外部输入经 _parse_*_field 校验后才进入下游。
+        src_ip, err = _parse_ip_field(request, 'src_ip', default='192.168.1.100', label='源 IP')
+        if err is not None: return err
+        # dst_ip 是必填项，default=None 让 _parse_ip_field 在用户没填时返回 400
+        dst_ip, err = _parse_ip_field(request, 'dst_ip', default=None, label='目的 IP')
+        if err is not None: return err
+
+        # 源端口 default 用固定 25000（旧 random.randint 每次重算的设计
+        # 没有安全价值，仅是让两个包不同——改为固定值后 _parse_int_field
+        # 的启动期断言才能跑）
+        src_port, err = _parse_int_field(request, 'src_port', default=25000, lo=1, hi=65535, label='源端口')
+        if err is not None: return err
+        dst_port, err = _parse_int_field(request, 'dst_port', default=25, lo=1, hi=65535, label='目的端口')
+        if err is not None: return err
 
         sender = request.form.get('sender', 'sender@example.com').strip()
         recipient = request.form.get('recipient', 'recipient@example.com').strip()
@@ -220,11 +233,11 @@ def generate_smtp_pcap():
 
         # 保存 PCAP
         try:
-            os.makedirs(PCAP_DIR, exist_ok=True)
+            ensure_dir(PCAP_DIR)
         except OSError as e:
             logger.exception("创建目录 %s 失败: %s", PCAP_DIR, e)
 
-        filename = f"smtp_{int(time.time())}.pcap"
+        filename = f"smtp_{unique_stamp()}.pcap"
         filepath = os.path.join(PCAP_DIR, filename)
         wrpcap(filepath, pkts)
         inc_gen_count("generate_smtp")

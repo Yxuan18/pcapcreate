@@ -14,7 +14,7 @@ from werkzeug.utils import secure_filename
 from http_requests import standard_get, ordinary_post, form_submission
 from http_responses import http_response_200, http_response_302, http_response_404, http_response_502
 from pcaps_create import creat_http_pcap, fix_content_length, fix_response_content_length
-from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count
+from utils import parse_templates, download_file, PCAP_DIR, inc_gen_count, unique_stamp, unique_path
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,14 @@ def generate():
             response_body = request.form.get('response_body', '')
             file_name = secure_filename(request.form.get('file_name', ''))
 
-            # 未指定文件名时使用时间戳
+            # L 系列：默认文件名改用 unique_stamp（含 8 位 hex 后缀），
+            # 杜绝同一分钟/秒内多用户生成重名文件互相覆盖。
+            # 自定义文件名走 unique_path 查重——同名自动追加 _1 / _2 ...
             if not file_name:
-                file_name = time.strftime('%H-%M', time.localtime(time.time()))
+                file_name = f"{unique_stamp()}.pcap"
+            else:
+                file_name = unique_path(PCAP_DIR, file_name)
+                file_name = os.path.basename(file_name)
 
             # 解析模板并生成 PCAP
             request_body_rep = parse_templates(content=request_body)

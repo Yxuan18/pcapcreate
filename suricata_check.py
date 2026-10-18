@@ -19,7 +19,11 @@ from flask import Blueprint, render_template, request, redirect, url_for
 from werkzeug.utils import secure_filename
 
 import surui_de
-from utils import PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir, get_detect_status, inc_gen_count
+from utils import (
+    PCAP_DIR as pcap_files_dir, RULES_DIR as rule_files_dir,
+    get_detect_status, inc_gen_count, rate_limit, _check_rate_limit,
+    unique_stamp, unique_path, ensure_dir,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -232,6 +236,58 @@ def verify_rules_file(file_stream, filename: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _validate_rule_fragment(fragment: str) -> tuple[bool, str]:
+    """
+    校验 /suricata_check 表单中 file_content_edit 字段的合法性。
+
+    该字段的语义是"被注入到 alert proto any any -> any any (msg:"X"; <fragment> sid:Y;)
+    模板的 options 片段"——不是完整规则行。
+    因此必须满足：
+      1) 单行（无换行/无回车）—— 防止多行注入把模板一拆为多行；
+      2) 括号配对—— 防止 `)` 提前闭合外层 `(`；
+      3) 不嵌入 Suricata 规则开头/方向符号—— 防止把一行变多行（``alert ... ->``、``->``、``<>``）；
+      4) 长度上限—— 防止 DoS；
+      5) 以分号结尾—— options 片段的最低形态。
+
+    关于引号：Suricata options 中 ``content:"foo"`` 是标准用法，用户的
+    正常工作流需要引号——禁止引号会破坏工具可用性。引号只能破坏同行的
+    ``msg:"X"``（外层 msg 的内容已是 ``rand_num``，用户输入的引号无破坏力），
+    而不会跨出整条规则，因此允许出现。
+
+    Layer 1 拦截最常见的注入 payload；Layer 2（合成后再调 verify_rules_file）
+    兜底，保证 Suricata 实际解析口径与本校验口径有偏差时也能被拦下。
+    """
+    if not fragment:
+        return False, "内容为空"
+
+    if len(fragment) > 1024:
+        return False, "长度超过 1024 字符"
+
+    # 单行：拒绝任何换行（\r \n \r\n \v \f）
+    if any(c in fragment for c in '\r\n\v\f'):
+        return False, "禁止换行"
+
+    # 括号配对：括号必须成对出现，否则会提前闭合外层
+    if fragment.count('(') != fragment.count(')'):
+        return False, "括号不配对"
+
+    # Suricata 规则头部 / 方向符号：嵌入会把一行变多行
+    forbidden_markers = ('alert ', 'pass ', 'drop ', 'reject ', 'sdrop ', 'log ',
+                         '->', '<>', '<-')
+    lowered = fragment.lower()
+    for marker in forbidden_markers:
+        if marker in lowered:
+            return False, f"禁止子规则标记 {marker.strip()}"
+
+    # options 片段的格式：以分号结尾的 key:value; 序列
+    # 不强制每个 kv 都合法（key/value 字符范围广），verify_rules_file 会兜底——
+    # 这里只做"分号结尾"和"非空 key"的最低形态校验。
+    if not fragment.rstrip().endswith(';'):
+        return False, "必须以分号 ; 结尾"
+
+    return True, ""
+
+
 # 蓝图定义
 suricata_check = Blueprint('suricata_check', __name__, template_folder='./')
 
@@ -335,8 +391,17 @@ def upload_pcap():
         # 先校验文件内容是否为合法的 PCAP/PCAPNG
         if not verify_pcap_file(file, filename):
             return "Invalid PCAP file content", 400
+        # L 系列：同名不覆盖。unique_path 查重后追加 _1 / _2 ...，
+        # 既保留用户命名意图，又不污染别人的文件。
+        # M-3 防护：用户从未访问过列表页时目录未创建，file.save() 会
+        # FileNotFoundError → 500。这里 ensure_dir 兜底。
         file.seek(0)  # 重置指针后再保存
-        file.save(os.path.join(pcap_files_dir, filename))
+        ensure_dir(pcap_files_dir)
+        target = unique_path(pcap_files_dir, filename)
+        file.save(target)
+        actual = os.path.basename(target)
+        if actual != filename:
+            logger.info("上传重名自动改名: %s -> %s", filename, actual)
         return "PCAP File uploaded successfully", 200
     elif filename.endswith('.rules'):
         # 校验规则文件语法
@@ -344,7 +409,13 @@ def upload_pcap():
         if not ok:
             return err, 400
         file.seek(0)  # 重置指针后再保存
-        file.save(os.path.join(rule_files_dir, filename))
+        # M-3 防护：同上，ruless 目录可能未创建。
+        ensure_dir(rule_files_dir)
+        target = unique_path(rule_files_dir, filename)
+        file.save(target)
+        actual = os.path.basename(target)
+        if actual != filename:
+            logger.info("上传重名自动改名: %s -> %s", filename, actual)
         return "RULES File uploaded successfully", 200
     else:
         return "Invalid file type", 400
@@ -368,6 +439,14 @@ def check():
     output = ""
 
     if request.method == 'POST':
+        # M-2 限流：POST 才会触发 Suricata/Detect 子进程；GET 只是展示
+        # 文件列表（用户正常浏览）。3 次/分钟——既能挡匿名 flood，
+        # 也不影响正常使用（一次完整检测流程 5~10s 一次，3/min 远高于
+        # 实际使用频率）。
+        blocked = _check_rate_limit(max_calls=3, window_seconds=60)
+        if blocked is not None:
+            return blocked
+
         selected_rule = request.form.get('file_select')
         selected_pcap = request.form.get('pcap_select')
 
@@ -404,10 +483,25 @@ def check():
         if 'file_content_edit' in request.form and 'load_rules' in request.form:
             file_content = request.form.get('file_content_edit', '').strip()
             if file_content:
-                # 生成带时间戳的规则文件名
-                times = datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%m%d-%H%M%S-")
-                rand_num = ''.join(random.choices(string.digits, k=2))
-                new_rule_path = os.path.join(rule_files_dir, f'{times}{rand_num}.rules')
+                # H-3 防护：拒绝 file_content 中会破坏外层规则包裹结构的字符——
+                # 换行、未配对括号、Suricata 规则头部/方向符号。引号允许
+                # （content:"foo" 是合法 Suricata syntax）。该字段语义是
+                # "options 片段"（注入到 alert proto any any -> any any
+                # (msg:"X"; {file_content} sid:Y;)，不是整条规则。
+                ok, reason = _validate_rule_fragment(file_content)
+                if not ok:
+                    logger.warning(
+                        "拒绝非法的规则片段: %s (user_input=%r)",
+                        reason, file_content[:120],
+                    )
+                    return f"规则内容非法: {reason}", 400
+
+                # L 系列：文件名加 8 位 hex 后缀（unique_stamp），杜绝
+                # 同秒内多用户提交同名规则的覆盖问题。原代码 2 位数字
+                # 后缀（100 组合）每秒 100+ 提交就冲突。
+                new_rule_path = unique_path(
+                    rule_files_dir, f"{unique_stamp()}.rules",
+                )
 
                 # 提取协议类型
                 match = re.search(r'metadata:service\s+(\w+);', file_content)
@@ -418,9 +512,24 @@ def check():
                 else:
                     protocol = 'udp'
 
+                # 注意：rule_content 仍用原 rand_num 作为 sid/msg；不依赖文件名。
                 rule_content = f'alert {protocol} any any -> any any (msg:"{rand_num}"; {file_content} sid:{rand_num};)'
+
+                # H-3 纵深防御：把合成后的完整规则再过一遍 verify_rules_file，
+                # 防止 validator 与 Suricata 实际解析口径有偏差时仍有漏网之鱼。
                 with open(new_rule_path, 'w', encoding='utf-8') as f:
                     f.write(rule_content)
+                with open(new_rule_path, 'rb') as f:
+                    ok, reason = verify_rules_file(f, new_rule_path)
+                if not ok:
+                    logger.error(
+                        "合成后规则未通过 verify_rules_file: %s", reason,
+                    )
+                    try:
+                        os.remove(new_rule_path)
+                    except OSError:
+                        pass
+                    return f"规则内容非法: {reason}", 400
 
                 logger.info("创建新规则文件: %s", new_rule_path)
 
@@ -442,7 +551,26 @@ def check():
                     next_page='detect_check.check'
                 )
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
+            # M-2 修复：communicate() 必须有 timeout。恶意构造的 pcap 可能
+            # 让 Suricata 长时间卡住（上传只校验 4 字节魔数），无 timeout 会
+            # 永久占住 worker 线程。timeout=300 对齐 run2.py 的 subprocess
+            # 行为（Detect 流程同样 300s 上限）。
+            try:
+                stdout, stderr = process.communicate(timeout=300)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                logger.warning("Suricata 检测超时（>300s），已终止子进程")
+                return render_template(
+                    'suricata_check.html',
+                    rule_files=rule_files,
+                    pcap_files=pcap_files,
+                    suricata_status=suricata_status,
+                    detect_status=detect_status,
+                    error='Suricata 检测超时（>300s），请检查 PCAP 或规则文件',
+                    previous_page='home',
+                    next_page='detect_check.check'
+                )
             raw_output = stdout.decode() + stderr.decode()
             # 过滤敏感路径信息，防止路径泄漏
             output = _sanitize_output(raw_output)

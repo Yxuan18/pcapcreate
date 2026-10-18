@@ -4,3 +4,10 @@ __pycache__/
 .vmark/
 ruless/
 pcapss/
+
+# 运行时产物
+gen_count.json
+gen_count.json.lock
+.web_apps_cleanup.lock
+eve.json
+*.log

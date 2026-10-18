@@ -5,12 +5,13 @@ Detect 检测工作流
 """
 
 import logging
+import os
 import subprocess
 import shutil
 import sys
 import threading
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import surui_de
 
@@ -27,6 +28,30 @@ OUTPUT_SDB = 'huoyan.sdb'
 OUTPUT_TAR = 'spe-detect.tar.gz'
 OUTPUT_ENCRYPTED = 'spe-detect.ti'
 TAR_CONTENTS = ('classification.sdb', 'reference.sdb')
+
+# 路径白名单：纵深防御 _run_detect 的越权路径。
+# 允许调用方通过环境变量覆盖（与 utils.PCAP_DIR / RULES_DIR 一致），
+# 但默认锁定到本工具约定的目录，避免 subprocess / 文件读取落入
+# /etc/passwd 等敏感位置。
+_BASE_DIR = os.getenv("WEB_APPS_BASE_DIR", os.getcwd())
+_RULES_DIR = os.path.realpath(os.getenv("WEB_APPS_RULES_DIR", os.path.join(_BASE_DIR, 'ruless')))
+_PCAP_DIR = os.path.realpath(os.getenv("WEB_APPS_PCAP_DIR", os.path.join(_BASE_DIR, 'pcapss')))
+
+
+def _is_path_within(path: str, base_dir: str) -> bool:
+    """
+    检查 path 是否位于 base_dir 之下（realpath 归一化后比对前缀）。
+
+    Args:
+        path: 待校验路径（绝对路径）。
+        base_dir: 白名单目录（绝对路径）。
+
+    Returns:
+        True 表示 path 解析后等于或在 base_dir 之下。
+    """
+    real_path = os.path.realpath(path)
+    return real_path == base_dir or real_path.startswith(base_dir + os.sep)
+
 
 # Detect 流程会清空其安装目录下的 log/ 和 pcap/，并发请求会互相删掉
 # 对方的日志和中间产物——全局锁把整个流程串行化。
@@ -108,7 +133,7 @@ def main(rules_file: str, pcaps_file: str) -> Tuple[bool, str]:
 
     Returns:
         (success: bool, result: str)
-        成功时 result 为 eve.json 内容，失败时为规则文件内容
+        成功时 result 为 eve.json 内容，失败时为固定提示文案。
 
     Raises:
         RuntimeError: 加密/打包/加密打包文件失败
@@ -122,6 +147,16 @@ def _run_detect(rules_file: str, pcaps_file: str) -> Tuple[bool, str]:
     # 路径转绝对——子进程的 cwd 是 Detect 目录，相对路径会指错地方
     rules_file = str(Path(rules_file).resolve())
     pcaps_file = str(Path(pcaps_file).resolve())
+
+    # 纵深防御：路由层（detect_check.run_detect）已校验过 rule_path /
+    # pcap_path 落在 RULES_DIR / PCAP_DIR 下，但 run2 也可能被其他调用方
+    # 直接复用（脚本入口 / 未来重构），所以在这里再卡一次，
+    # 拒绝任意路径进入 sdbCrypt / Detect / 失败分支的文件读取 sink。
+    if not _is_path_within(rules_file, _RULES_DIR) \
+            or not _is_path_within(pcaps_file, _PCAP_DIR):
+        raise ValueError(
+            f"run2 拒绝越权路径: rules_file={rules_file!r} pcaps_file={pcaps_file!r}"
+        )
 
     bin_path = Path(surui_de.detect_path.get('bin_', ''))
     run_cwd = str(bin_path)
@@ -189,12 +224,8 @@ def _run_detect(rules_file: str, pcaps_file: str) -> Tuple[bool, str]:
         return True, result
     else:
         logger.warning("未检测到告警，请检查 PCAP 文件或规则文件")
-        try:
-            with open(rules_file, 'r', encoding='utf-8') as f:
-                rules_context = f.read()
-        except OSError:
-            rules_context = "(无法读取规则文件)"
-        return False, rules_context
+        # 不再回显 rules 文件内容——任意文件读取 sink（参见 H-1）。
+        return False, "未检测到告警，请检查 PCAP 文件或规则文件"
 
 
 def read_eve_json(filename: Path) -> str:

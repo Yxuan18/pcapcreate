@@ -24,7 +24,7 @@
         <div id="content" style="display:none;"></div>
 
         <div class="action-bar">
-            <button class="btn" onclick="captureAndDownload('{{ pcap_name }}')">
+            <button class="btn" data-pcap-name="{{ pcap_name }}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 下载截图
             </button>
@@ -36,6 +36,14 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/html2canvas.min.js') }}"></script>
 <script>
+// 从 data-pcap-name 属性取 pcap_name（HTML 属性上下文，由 Jinja autoescape
+// 守门），不再用 JS 字符串字面量 '{{ pcap_name }}' 嵌入——后者会被 Jinja
+// 仅做 HTML 实体转义，浏览器解码后变成裸引号闭合 JS 字符串。
+function getPcapName() {
+    var btn = document.querySelector('.btn[data-pcap-name]');
+    return btn ? btn.getAttribute('data-pcap-name') : '';
+}
+
 function captureAndDownload(pcapName) {
     var textArea = document.querySelector('textarea');
     var contentDiv = document.getElementById('content');
@@ -65,7 +73,7 @@ function captureAndDownload(pcapName) {
 }
 
 window.onload = function() {
-    captureAndDownload('{{ pcap_name }}');
+    captureAndDownload(getPcapName());
 };
 </script>
 {% include 'footer.html' %}
