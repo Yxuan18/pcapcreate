@@ -1,4 +1,15 @@
-flask
-scapy
+# pcapcreate 运行时依赖。
+#
+# 上游 tstools 的 suricata_tools/web_apps/requirements.txt 已改为注释
+# （那边由仓库根的 pyproject.toml + uv.lock 统一管理）。本仓库是独立
+# 仓库，没有 pyproject.toml 也没有 uv.lock，README 的
+# `pip install -r requirements.txt` 必须能装出可跑环境，故保留实体清单。
+#
+# 与上游保持同一份运行时集合，另外补上 web_apps 里 finance 模块实际
+# import 的第三方包（yfinance/selenium 等）可选——finance 在 app.py 里
+# 用 try/except 包住，装不上不影响主功能，故不列为硬依赖。
+flask>=2.0
+scapy>=2.5
 pytz
-apscheduler
+apscheduler>=3.9
+werkzeug>=2.0

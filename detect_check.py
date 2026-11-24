@@ -163,8 +163,13 @@ def run_detect():
 
     # 失败时不再回显 rules 文件内容——任意文件读取 sink（参见 H-1）。
     # run2.main 失败分支仍会尝试 open(rules_file) 并返回内容，这里覆盖掉。
+    # 但"引擎崩溃"与"真的没告警"必须分开：前者是故障，后者是正常结果，
+    # 一律改写成"未检测到告警"会让 Detect 坏掉时看起来像规则没问题。
     if not success:
-        result = "未检测到告警，请检查 PCAP 文件或规则文件"
+        if result and 'Detect 执行失败' in result:
+            logger.error("Detect 异常退出，结果页显示故障原因")
+        else:
+            result = "未检测到告警，请检查 PCAP 文件或规则文件"
 
     return render_template(
         'detect_check_result.html',

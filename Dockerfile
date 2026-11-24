@@ -31,5 +31,6 @@ FROM mypcapcreate:v3
 EXPOSE 9900
 # 记得加上 app.py 的绝对路径。
 # 注意：该 Dcokerfile 不会将原有的数据删除。旧的 PCAP 文件以及 RULES 文件还在
-# 但不用担心，文件在 48 小时后会自动删除
+# 但不用担心，文件在 16 小时后会自动删除（WEB_APPS_CLEANUP_HOURS 可调，
+# WEB_APPS_CLEANUP_ENABLED=false 可关闭清理）
 CMD ["python", "/var/www/web_apps/app.py"]

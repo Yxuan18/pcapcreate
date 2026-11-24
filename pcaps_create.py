@@ -174,7 +174,9 @@ def creat_http_pcap(request_str, response_str, pcapname=''):
     # 不能 str(Path(.../ 'pcapss/')) 再字符串拼接——pathlib 会去掉尾斜杠，
     # 'pcapss' + name 拼出 'pcapssXXX.pcap' 落在上级目录。
     os.makedirs(PCAP_DIR, exist_ok=True)
-    file_paths = os.path.join(PCAP_DIR, f'{pcapname}.pcap')
+    # pcapname 可能已带 .pcap（路由的默认文件名就是这样），避免 xxx.pcap.pcap
+    stem = pcapname[:-5] if pcapname.lower().endswith('.pcap') else pcapname
+    file_paths = os.path.join(PCAP_DIR, f'{stem}.pcap')
 
     wrpcap(file_paths, http_traffic)
     return file_paths
@@ -376,7 +378,9 @@ def creat_http_pcap_new(request_str: str,response_str: str,pcapname: str,config:
 
     # ── 7. 写文件 ──
     os.makedirs(cfg.output_dir, exist_ok=True)
-    filepath = os.path.join(cfg.output_dir, f"{pcapname}.pcap")
+    # 同上：pcapname 可带或不带 .pcap，不重复追加
+    stem = pcapname[:-5] if pcapname.lower().endswith('.pcap') else pcapname
+    filepath = os.path.join(cfg.output_dir, f"{stem}.pcap")
     wrpcap(filepath, packets)
 
 

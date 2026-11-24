@@ -14,6 +14,18 @@
         </a>
     </div>
 
+    {% if error %}
+    <div class="missing-banner">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if notice %}
+    <div class="notice-banner">
+        {{ notice }}
+    </div>
+    {% endif %}
+
     <div class="result-card">
         <div class="result-toolbar">
             <span class="result-label">检测输出</span>

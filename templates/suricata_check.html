@@ -30,6 +30,13 @@
     </div>
     {% endif %}
 
+    {# 非阻塞提示：保存成功但有需要知道的事（例如重复 sid 的后果） #}
+    {% if notice %}
+    <div class="notice-banner">
+        {{ notice }}
+    </div>
+    {% endif %}
+
     <form class="layui-form" action="" method="post">
     <div class="workspace-grid">
         <div class="panel-card assets-panel">
@@ -84,7 +91,7 @@
 
             <div class="layui-form-item" style="margin-top: 24px;">
                 <label for="file_content_edit" class="layui-form-label">编辑重载区域</label>
-                <textarea name="file_content_edit" id="file_content_edit" class="code-textarea" placeholder="在此处键入或修改规则，需包含 metadata:service 以通过合规检查..."></textarea>
+                <textarea name="file_content_edit" id="file_content_edit" class="code-textarea" placeholder="每行一条：可直接粘贴完整规则（alert tcp ... sid:1; rev:1;），也可只写 options 片段（flow:to_server; http.uri; content:&quot;/index&quot;; metadata:service http;）由模板补全..."></textarea>
 
                 <div class="rules-toolbar">
                     <button type="submit" id="load_rules_btn" name="load_rules" class="layui-btn layui-btn-normal layui-btn-sm">重载修改后的规则</button>
@@ -121,13 +128,20 @@ layui.use(['form', 'layer'], function () {
         });
     }
 
+    // 按钮出现条件：有内容且有非注释行。
+    // 原来要求含 metadata:service——那只对 options 片段成立；
+    // 整条规则（alert ... sid:1; rev:1;）本身已含协议，不需要该字段，
+    // 用它当显示门槛会让"粘贴多条完整规则"看不到按钮。
     function checkContentCompliance() {
-        var content = fileContentEdit.value.trim();
-        if (content.includes('metadata:service')) {
-            loadRulesBtn.style.display = 'inline-block';
-        } else {
-            loadRulesBtn.style.display = 'none';
+        var lines = fileContentEdit.value.split('\n');
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (line && line.charAt(0) !== '#') {
+                loadRulesBtn.style.display = 'inline-block';
+                return;
+            }
         }
+        loadRulesBtn.style.display = 'none';
     }
 
     initRuleAutocomplete('file_content_edit', checkContentCompliance, { layer: layer });

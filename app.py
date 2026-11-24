@@ -11,6 +11,7 @@ import os
 import shutil
 import time
 import fcntl
+from datetime import datetime
 
 from flask import Flask, render_template, request
 
@@ -96,16 +97,29 @@ def clear_directories():
     3. 读 utils.PCAP_DIR/RULES_DIR 而非硬编码，与 operator 配置保持一致。
     4. 只清 mtime 在阈值前的文件，刚生成的不动。
     """
-    # 多 worker 去重：拿不到锁说明别的 worker 正在清理，本轮跳过
+    # 多 worker 去重：只有锁被别的 worker 占用才是「本轮跳过」。
+    # 锁文件建不出来（目录不可写/不存在，gunicorn 的 cwd 常是 /）不能
+    # 当成竞争——那会让清理永久静默失效。宁可并发多删一次（逐文件
+    # OSError 已被捕获），也不要因为拿不到锁就什么都不做。
     lock_fd = None
     try:
         lock_fd = open(_CLEANUP_LOCK_PATH, "w")
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except (BlockingIOError, OSError):
-        if lock_fd is not None:
+    except OSError as e:
+        logger.warning("cleanup 锁文件不可用（%s），本轮不加锁直接清理", e)
+    else:
+        try:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            # EWOULDBLOCK/EAGAIN：别的 worker 正持锁，本轮跳过
             lock_fd.close()
-        logger.debug("cleanup 锁被其他 worker 持有，本轮跳过")
-        return
+            lock_fd = None
+            logger.debug("cleanup 锁被其他 worker 持有，本轮跳过")
+            return
+        except OSError as e:
+            # 其它锁错误（罕见）：不加锁继续清，理由同 open 失败
+            logger.warning("cleanup 加锁失败（%s），本轮不加锁直接清理", e)
+            lock_fd.close()
+            lock_fd = None
 
     try:
         # 函数内 import：utils 在 app 启动时已固化目录，模块级引用稳定
@@ -199,13 +213,21 @@ if __name__ == '__main__':
 
 
 # 模块顶层：gunicorn 通过 `from app import app` 也会执行此处，
-# 因此 cleanup scheduler 必须放在 __main__ 块外，由环境变量显式开启，
-# 默认关闭以避免与 e2e_smoke 冲突。
-if os.getenv("WEB_APPS_CLEANUP_ENABLED", "false").lower() in ("true", "1", "yes"):
+# 因此 cleanup scheduler 必须放在 __main__ 块外。默认开启：Dockerfile
+# 的契约（文件到期自动删除）依赖它，关掉得显式设 WEB_APPS_CLEANUP_ENABLED=false。
+if os.getenv("WEB_APPS_CLEANUP_ENABLED", "true").lower() in ("true", "1", "yes"):
     try:
         _cleanup_scheduler = BackgroundScheduler()
-        _cleanup_scheduler.add_job(func=clear_directories, trigger="interval", hours=16)
+        _cleanup_scheduler.add_job(
+            func=clear_directories,
+            trigger="interval",
+            hours=16,
+            # interval 触发器的首次运行默认是 now+16h。gunicorn 每次部署/
+            # reload 都会重建进程并重置该计时器，重启比 16h 频繁就等于永不
+            # 触发。启动即清一次，之后每 16h。
+            next_run_time=datetime.now(),
+        )
         _cleanup_scheduler.start()
-        logger.info("web_apps 清理任务已启动（每 16h，多 worker 通过 fcntl 去重）")
+        logger.info("web_apps 清理任务已启动（启动即清一次，之后每 16h，多 worker 通过 fcntl 去重）")
     except Exception as e:
         logger.exception("web_apps 清理任务启动失败: %s", e)

@@ -20,43 +20,100 @@ PCAP_DIR = os.getenv("WEB_APPS_PCAP_DIR", os.path.join(BASE_DIR, 'pcapss'))
 RULES_DIR = os.getenv("WEB_APPS_RULES_DIR", os.path.join(BASE_DIR, 'ruless'))
 
 
+# 模板占位符：{{func(value)}}
+# 非贪婪 + 不含换行，与旧实现保持同一表达式（只把 re.search 换成 finditer）。
+_TEMPLATE_RE_TEXT = re.compile(r'\x7b\x7b(\w+)\x28(.*?)\x29\x7d\x7d')
+_TEMPLATE_RE_BYTES = re.compile(rb'\x7b\x7b(\w+)\x28(.*?)\x29\x7d\x7d')
+
+# file 模板白名单：只允许读这几个系统信息文件（用于 WAF 检测规则测试）。
+# 比较前统一把反斜杠换成正斜杠，所以 Windows 风格路径与 POSIX 风格同表。
+_ALLOWED_TEMPLATE_FILES = frozenset({'/etc/passwd', 'c:/windows/win.ini'})
+
+
+def _resolve_template(func_name: str, value: str):
+    """
+    求值单个模板，返回替换用的原始字节。
+
+    返回 None 表示该模板「不适用」——未知函数名，或 file 路径不在白名单里，
+    调用方保留占位符原文（不算错误，不打日志）。
+    抛异常表示模板本身写错了（如 hex 参数不是合法十六进制），调用方记日志
+    后同样保留占位符原文。
+    """
+    if func_name == 'hex':
+        # 处理十六进制
+        return binascii.unhexlify(value)
+    if func_name == 'base64':
+        # 处理base64
+        return base64.b64decode(value)
+    if func_name == 'file':
+        # 仅允许读取特定的系统信息文件（用于 WAF 检测规则测试）
+        normalized = value.lower().replace(chr(92), '/')
+        if normalized not in _ALLOWED_TEMPLATE_FILES:
+            return None
+        with open(value, 'rb') as f:
+            return f.read()
+    return None
+
+
+def _expand_one(func_name, value, placeholder: bytes) -> bytes:
+    """求值单个占位符；不适用或出错时返回占位符原文。"""
+    if func_name is None:
+        return placeholder
+    try:
+        raw = _resolve_template(func_name, value)
+    except Exception as e:
+        logger.exception("解析模板失败: %s", e)
+        return placeholder
+    # raw 合法地可能是 b''（空内容），所以用 is None 判断而不是真值
+    return placeholder if raw is None else raw
+
+
 def parse_templates(content):
     """
     解析多种模板格式，支持hex、base64、file等。
 
+    一段内容里的**全部**占位符都会被展开（不只是第一个）：逐个求值、逐个替换。
+    各占位符彼此独立——一个占位符写错了（hex 参数非法）或不被允许
+    （file 路径不在白名单）时，只有它自己保持原样，其余占位符照常展开。
+    这个取舍的理由：一个坏占位符不该让整段报文都不展开——用户拿到的是
+    「一段里带未展开占位符的报文」，比「整段都没展开」更容易定位问题。
+
     返回 bytes：模板产生的原始字节与普通文本（按 UTF-8 编码）直接拼接。
     不能先按 Latin-1 解码成 str 再让调用方编码——字节 >= 0x80 会在
     UTF-8 编码时变形（如 {{hex(ff)}} 变成 c3bf），二进制特征样本就错了。
+
+    入参可以是 str（文本按 UTF-8 编码输出）或 bytes（原样处理），
+    后者保证 parse_templates(parse_templates(x)) 幂等。
     """
-    match = re.search(r'\x7b\x7b(\w+)\x28(.*?)\x29\x7d\x7d', content)
-    if not match:
-        return content.encode('utf-8')
-    func_name = match.group(1)
-    value = match.group(2)
-    alls_ = match.group(0)
+    if isinstance(content, str):
+        out = []
+        last = 0
+        for match in _TEMPLATE_RE_TEXT.finditer(content):
+            out.append(content[last:match.start()].encode('utf-8'))
+            out.append(_expand_one(match.group(1), match.group(2),
+                                   match.group(0).encode('utf-8')))
+            last = match.end()
+        out.append(content[last:].encode('utf-8'))
+        return b''.join(out)
 
-    try:
-        if func_name == 'hex':
-            # 处理十六进制
-            raw = binascii.unhexlify(value)
-        elif func_name == 'base64':
-            # 处理base64
-            raw = base64.b64decode(value)
-        elif func_name == 'file':
-            # 仅允许读取特定的系统信息文件（用于 WAF 检测规则测试）
-            ALLOWED_FILES = {'/etc/passwd', 'c:/windows/win.ini', 'c:\\windows\\win.ini'}
-            if value.lower().replace('\\', '/') not in {p.lower() for p in ALLOWED_FILES}:
-                return content.encode('utf-8')
-            with open(value, 'rb') as f:
-                raw = f.read()
-        else:
-            return content.encode('utf-8')
-    except Exception as e:
-        logger.exception("解析模板失败: %s", e)
-        return content.encode('utf-8')
+    if isinstance(content, (bytes, bytearray)):
+        src = bytes(content)
+        out = []
+        last = 0
+        for match in _TEMPLATE_RE_BYTES.finditer(src):
+            out.append(src[last:match.start()])
+            try:
+                func_name = match.group(1).decode('utf-8')
+                value = match.group(2).decode('utf-8')
+            except UnicodeDecodeError:
+                # 参数不是 UTF-8：无法求值，保持原样
+                func_name = value = None
+            out.append(_expand_one(func_name, value, match.group(0)))
+            last = match.end()
+        out.append(src[last:])
+        return b''.join(out)
 
-    # 等价于原 content.replace(alls_, ...)：同一模板串出现几次就替换几次
-    return raw.join(part.encode('utf-8') for part in content.split(alls_))
+    raise TypeError(f"content 类型不支持: {type(content).__name__}")
 
 
 def download_file(directory: str, filename: str):

@@ -214,7 +214,12 @@ def _run_detect(rules_file: str, pcaps_file: str) -> Tuple[bool, str]:
 
     # 执行 Detect
     logger.info("执行 Detect 程序...")
-    subprocess.run([str(detect_bin), '-r', pcaps_file], timeout=300, cwd=run_cwd)
+    # 捕获输出：失败时要能回显引擎自己的报错，否则用户只能看到"未检测到告警"，
+    # 无法区分引擎崩了和真的没告警。text=False 保持 bytes，避免编码异常再抛。
+    detect_result = subprocess.run(
+        [str(detect_bin), '-r', pcaps_file],
+        timeout=300, cwd=run_cwd, capture_output=True
+    )
 
     # 检查结果
     eve_json_path = log_dir / 'eve.json'
@@ -222,10 +227,23 @@ def _run_detect(rules_file: str, pcaps_file: str) -> Tuple[bool, str]:
         result = read_eve_json(eve_json_path)
         logger.info("检测完成，结果已生成")
         return True, result
-    else:
-        logger.warning("未检测到告警，请检查 PCAP 文件或规则文件")
-        # 不再回显 rules 文件内容——任意文件读取 sink（参见 H-1）。
-        return False, "未检测到告警，请检查 PCAP 文件或规则文件"
+
+    # eve.json 不存在有两种原因，必须分开报：引擎崩了 vs 真的没告警。
+    # 旧实现只看 eve.json 存不存在，Detect 退出码 3 报致命错误时会返回
+    # "未检测到告警"，用户以为规则没问题，实际是检测根本没跑成。
+    if detect_result.returncode != 0:
+        stderr_tail = (detect_result.stderr or b'').decode('utf-8', 'replace').strip()[-400:]
+        logger.error("Detect 异常退出: returncode=%s stderr=%s",
+                     detect_result.returncode, stderr_tail or '(空)')
+        return False, (
+            f"Detect 执行失败（退出码 {detect_result.returncode}），"
+            f"未生成 eve.json。这不是「无告警」，请检查 Detect 安装与 PCAP 文件。\n\n"
+            f"{stderr_tail}"
+        )
+
+    logger.warning("未检测到告警，请检查 PCAP 文件或规则文件")
+    # 不再回显 rules 文件内容——任意文件读取 sink（参见 H-1）。
+    return False, "未检测到告警，请检查 PCAP 文件或规则文件"
 
 
 def read_eve_json(filename: Path) -> str:

@@ -56,6 +56,19 @@
     margin-bottom: 12px;
 }
 
+/* 非阻塞提示：与故障横幅区分开——这一条是"做了，但有件事你需要知道" */
+.notice-banner {
+    margin-bottom: 18px;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(74, 126, 196, 0.07);
+    border: 1px solid rgba(74, 126, 196, 0.26);
+    color: #46607f;
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: left;
+}
+
 .status {
     font-size: 13px;
     color: var(--text-muted);

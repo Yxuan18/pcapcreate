@@ -57,7 +57,8 @@
     /* 最大高度限制，超出后滚动 */
     max-height: 520px;
     font-family: var(--font-code);
-    font-size: 13px;
+    /* 报文正文（请求体/响应体）是这块页面主要阅读对象，13px 偏小，用 16px */
+    font-size: 16px;
     line-height: 1.75;
     padding: 14px 16px;
     resize: vertical;

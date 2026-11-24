@@ -21,7 +21,7 @@
                         <button type="button" class="layui-btn layui-btn-primary template-btn" data-template="FORM提交" data-type="request">FORM提交</button>
                     </div>
                 </div>
-                <textarea name="request_body" class="layui-textarea" placeholder="双击页面空白处可清空内容...">{{ request_body_content }}</textarea>
+                <textarea name="request_body" class="layui-textarea" placeholder="双击页面空白处可清空内容...&#10;可整段粘贴「请求 + 响应」连体内容：失焦后请求留在本框，响应拆到右侧响应框">{{ request_body_content }}</textarea>
             </div>
 
             <div class="workspace-card">
@@ -129,61 +129,70 @@ layui.use(['form', 'layer'], function () {
     });
 
     // ────────────────────────────────────────────────────────────────
-    // HTTP 请求体自动修正
+    // 失焦自动补全：简要 payload → 完整报文
+    // 服务端只补结构（method/版本/Host/Content-Length），不改写内容。
+    // 请求框里粘着"请求 + 响应"连体时，服务端会拆出响应放进 split_response，
+    // 这里填进响应框——响应框已有内容则以用户填的为准。
+    // 生成路由会再补一次，两者幂等——所以这里的失败不影响产物正确性。
     // ────────────────────────────────────────────────────────────────
-    if (requestTextarea) {
-        requestTextarea.addEventListener('blur', function () {
-            let content = requestTextarea.value;
-            let lines = content.split('\n');
+    function attachAutoExpand(textarea, kind) {
+        if (!textarea) return;
 
-            if (lines.length > 0 && lines[0].trim() !== '') {
-                let firstLine = lines[0];
-                let modified = false;
+        let seq = 0;            // 请求序号：丢弃乱序返回的旧响应
+        let lastValue = null;   // 上次补全时的内容：内容没变就不重复请求
 
-                const regex = /^([A-Z]{3,6})\s(\/?.*)/;
-                let match = firstLine.match(regex);
+        textarea.addEventListener('blur', function () {
+            const snapshot = textarea.value;
+            if (!snapshot.trim() || snapshot === lastValue) return;
 
-                if (match) {
-                    let capitalLetters = match[1];
-                    let restOfLine = match[2];
+            // 已是完整报文就不打扰用户（服务端返回 changed=false）
+            const token = ++seq;
 
-                    if (!restOfLine.startsWith('/')) {
-                        restOfLine = '/' + restOfLine;
-                        modified = true;
-                    }
-
-                    firstLine = `${capitalLetters} ${restOfLine}`;
-                }
-
-                const httpSuffixRegex = /HTTP\/1\.1\s*$/;
-                if (httpSuffixRegex.test(firstLine)) {
-                    const trimmed = firstLine.replace(/\s+$/, '');
-                    if (trimmed !== firstLine) {
-                        firstLine = trimmed;
-                        modified = true;
-                    }
-                } else {
-                    if (firstLine.endsWith(' ')) {
-                        firstLine += 'HTTP/1.1';
-                    } else {
-                        firstLine += ' HTTP/1.1';
-                    }
-                    modified = true;
-                }
-
-                if (modified) {
-                    lines[0] = firstLine;
-                    requestTextarea.value = lines.join('\n');
-
-                    layer.msg('请求体内容已自动修正', {
-                        time: 1500,
-                        icon: 1,
-                        offset: 't',
-                    });
-                }
+            const body = new FormData();
+            body.append('payload', snapshot);
+            body.append('kind', kind);
+            // 响应框已有内容时，拆出来的响应无处安放，服务端据此不拆
+            if (kind === 'request' && responseTextarea && responseTextarea.value.trim()) {
+                body.append('response_filled', '1');
             }
+
+            fetch('/generate_pcap/expand', { method: 'POST', body: body })
+                .then(response => response.json().then(data => ({ status: response.status, data })))
+                .then(({ status, data }) => {
+                    if (token !== seq) return;              // 有更新的请求了
+                    if (status !== 200) return;             // 静默失败，生成时仍会补
+                    lastValue = snapshot;
+
+                    // 请求框里带响应、但响应框已有内容：不动，提示用户先清空。
+                    // 拆出来无处安放，硬拆等于把那段从页面上删掉。
+                    if (data.skipped_split) {
+                        layer.msg('请求框里像是"请求 + 响应"连体，但响应框已有内容；清空响应框再离开可自动拆分', {
+                            time: 3000, icon: 0, offset: 't',
+                        });
+                        return;
+                    }
+
+                    if (data.split_response && responseTextarea) {
+                        responseTextarea.value = data.split_response;
+                        syncTextareaHeights(responseTextarea);
+                    }
+
+                    // 用户在这期间又编辑了：保留用户输入，不覆盖
+                    if (textarea.value !== snapshot) return;
+                    if (!data.changed) return;              // 无需改动，不弹提示
+
+                    textarea.value = data.content;
+                    syncTextareaHeights(textarea);
+                    layer.msg('已自动补全为完整报文', {
+                        time: 1200, icon: 1, offset: 't',
+                    });
+                })
+                .catch(() => { /* 静默：生成时服务端兜底 */ });
         });
     }
+
+    attachAutoExpand(requestTextarea, 'request');
+    attachAutoExpand(responseTextarea, 'response');
 
     const fileNameInput = document.querySelector('input[name="file_name"]');
     const formEl = document.querySelector('form.layui-form');

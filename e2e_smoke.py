@@ -61,6 +61,8 @@ def main() -> int:
         "FLASK_PORT": str(port),
         "FLASK_HOST": "127.0.0.1",
         "FLASK_DEBUG": "false",
+        # 清理默认开启，冒烟不验证它，也不该清理开发机的 pcapss/ruless
+        "WEB_APPS_CLEANUP_ENABLED": "false",
     }
     logger.info("启动 web_apps 于 127.0.0.1:%s", port)
     proc = subprocess.Popen(
